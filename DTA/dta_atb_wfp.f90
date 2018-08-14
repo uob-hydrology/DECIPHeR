@@ -24,7 +24,7 @@ contains
         double precision :: dem_centre
 
         type(point_type) :: newpeak
-        print *, 'find peaks'
+        !print *, 'find peaks'
 
         peak_q = new_stack()
 
@@ -190,7 +190,7 @@ contains
         mask = dem > -9000
 
         total = sum(count(mask, 2))
-        print *, 'atb start', total
+        !print *, 'atb start', total
 
         CALL timer_get(start_time)
         last_print_time = start_time
@@ -218,10 +218,10 @@ contains
                         dem, catch_mask, cellState, openCells, node)
                     processed_count = processed_count + 1
 
-                    if(mod(processed_count,10000) == 0) then
-                        CALL timer_get(now_time)
-                        call timer_estimate(processed_count, total, start_time, now_time, last_print_time)
-                    endif
+                    !if(mod(processed_count,10000) == 0) then
+                    !    CALL timer_get(now_time)
+                    !    call timer_estimate(processed_count, total, start_time, now_time, last_print_time)
+                    !endif
                 enddo
             endif
         enddo

@@ -32,7 +32,7 @@ program river_find_hw
 
     double precision, allocatable, dimension(:,:) :: outlets_input_data
 
-    integer :: ncols, nrows
+    integer :: ncols, nrows, ioerr
     double precision :: xllcorner, yllcorner, cellsize
     double precision :: double_nodata
     type(time_type) :: start_time, end_time, run_start_time
@@ -49,7 +49,20 @@ program river_find_hw
     input_is_valid = .true.
 
     i = 0
-    print *, '--- river_find_hw ---'
+
+    tmp_char = 'DTA_river_find_hw.log'
+    open(999, file = tmp_char, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(999,*) '--- river_find_hw.f90 ---'
+    write(999,*) ''
+    print *, '--- Starting river_find_hw ---'
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -114,36 +127,44 @@ program river_find_hw
         stop
     endif
 
+    write(999,*) 'Command Options Read In'
+    write(999,*) 'river  file: ', trim(in_river_file)
+    write(999,*) ''
+    write(999,*) 'Using the following search and move downstream distance'
+    write(999,*) 'search distance', search_dist
+    write(999,*) 'move downstream distance', move_downstream_dist
+
     print *, 'in_river: ', trim(in_river_file)
     print *, 'search distance', search_dist
     print *, 'move downstream distance', move_downstream_dist
 
     output_riv_file_prefix = in_river_file(1:(len_trim(in_river_file)-4))
 
+    write(999,*) 'read river grid:', trim(in_river_file)
     print *, 'read river grid:', trim(in_river_file)
+
     CALL timer_get(start_time)
     call read_ascii_grid(in_river_file, riv_grid, &
         ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read river grid', start_time, end_time)
+    !call timer_print('read river grid', start_time, end_time)
 
     ! convert the river file to a logical mask
     allocate(riv_mask_grid(nrows, ncols))
     riv_mask_grid = riv_grid > 0.001
     deallocate(riv_grid)
 
-    print *, 'river cells', count(riv_mask_grid)
-
+    write(999,*) 'number of river cells:', count(riv_mask_grid)
 
     if(len_trim(in_dem_file) > 0) then
         ! DEM MODE
-
+        write(999,*) 'read dem grid:', trim(in_dem_file)
         print *, 'read dem grid:', trim(in_dem_file)
         CALL timer_get(start_time)
         call read_ascii_grid(in_dem_file, dem_grid, &
             ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
         CALL timer_get(end_time)
-        call timer_print('read dem grid', start_time, end_time)
+        !call timer_print('read dem grid', start_time, end_time)
 
         !        dem_grid(1,:) = -99
         !        dem_grid(nrows,:) = -99
@@ -155,18 +176,19 @@ program river_find_hw
         sea_mask_grid = dem_grid < -90
         !deallocate(dem_grid)
 
-        print *, 'sea cells', count(sea_mask_grid)
+        print *, 'Finding Outlets'
+        write(999,*) 'Finding Outlets'
 
         call river_find_outlets(nrows, ncols, riv_mask_grid, sea_mask_grid, sea_outlets )
 
-        print *, 'outlets found: ', size(sea_outlets)
+        write(999,*) 'outlets found: ', size(sea_outlets)
 
-        write (tmp_char,'(A,A)') &
-            trim(output_riv_file_prefix), &
-            '_outlets.txt'
+        !write (tmp_char,'(A,A)') &
+        !    trim(output_riv_file_prefix), &
+        !    '_outlets.txt'
 
         ! outlets (write output not really required, maybe useful to visualise)
-        call write_point_list(tmp_char, sea_outlets, nrows, xllcorner, yllcorner, cellsize)
+        !call write_point_list(tmp_char, sea_outlets, nrows, xllcorner, yllcorner, cellsize)
 
         ! finished with the sea mask
         deallocate(sea_mask_grid)
@@ -184,11 +206,13 @@ program river_find_hw
 
         end do
 
-        print *, 'outlets from file: ', size(sea_outlets)
+        write(999,*) 'outlets from file: ', size(sea_outlets)
 
         deallocate(outlets_input_data)
     endif
 
+    print *, 'Headwater Pass 1'
+    write(999,*) 'Headwater Pass 1'
 
     allocate(riv_dist_grid(nrows,ncols))
     riv_dist_grid(:,:) = -99
@@ -196,17 +220,16 @@ program river_find_hw
     call river_find_headwater_pass1(nrows, ncols, &
         riv_mask_grid, sea_outlets, riv_dist_grid, headwater_pass1)
     CALL timer_get(end_time)
-    call timer_print('headwater_pass1', start_time, end_time)
-
+    !call timer_print('headwater_pass1', start_time, end_time)
 
     if(len_trim(in_dem_file) > 0) then
         ! DEM MODE
 
         cell_count = count(abs(riv_dist_grid + 1) < 0.0001)
-        print*,'Found river cells not linked to sea: ', cell_count
+        write(999,*)'Found river cells not linked to sea: ', cell_count
         ! count non joined rivers (distance == -1)
         if(cell_count >0) then
-            print*,'Joining river cells and re-processing'
+            write(999,*) 'Joining river cells and re-processing'
 
             ! need to join rivers and reprocess
 
@@ -242,18 +265,18 @@ program river_find_hw
             sea_mask_grid = dem_grid < -90
             deallocate(dem_grid)
 
-            print *, 'sea cells', count(sea_mask_grid)
+            !print *, 'sea cells', count(sea_mask_grid)
 
             call river_find_outlets(nrows, ncols, riv_mask_grid, sea_mask_grid, sea_outlets )
 
-            print *, 'outlets found: ', size(sea_outlets)
+            !print *, 'outlets found: ', size(sea_outlets)
 
-            write (tmp_char,'(A,A)') &
-                trim(output_riv_file_prefix), &
-                '_outlets2.txt'
+            !write (tmp_char,'(A,A)') &
+            !    trim(output_riv_file_prefix), &
+            !    '_outlets2.txt'
 
             ! outlets (write output not really required, maybe useful to visualise)
-            call write_point_list(tmp_char, sea_outlets, nrows, xllcorner, yllcorner, cellsize)
+            !call write_point_list(tmp_char, sea_outlets, nrows, xllcorner, yllcorner, cellsize)
 
             ! finished with the sea mask
             deallocate(sea_mask_grid)
@@ -264,19 +287,18 @@ program river_find_hw
             call river_find_headwater_pass1(nrows, ncols, &
                 riv_mask_grid, sea_outlets, riv_dist_grid, headwater_pass1)
             CALL timer_get(end_time)
-            call timer_print('headwater_pass1', start_time, end_time)
+            !call timer_print('headwater_pass1', start_time, end_time)
 
             cell_count = count(abs(riv_dist_grid + 1) < 0.0001)
-            print*,'Found river cells not linked to sea: ', cell_count
+            write(999,*) 'Found river cells not linked to sea: ', cell_count
             if(cell_count > 0) then
-                print*, 'These cells flow outside the catchment boundaries'
+                write(999,*) 'These cells flow outside the catchment boundaries'
                 tmp_char = trim(output_riv_file_prefix)//'_dist.asc'
-                print*, 'cells can be checked where dist == -1: ', trim(tmp_char)
+                write(999,*) 'cells can be checked where dist == -1: ', trim(tmp_char)
             endif
 
         endif
     endif
-
 
     ! save headwater list (pass 1) (not really required)
     !write (tmp_char,'(A,A)') &
@@ -286,19 +308,25 @@ program river_find_hw
 
     tmp_char = trim(output_riv_file_prefix)//'_dist.asc'
     print*, 'Write: ', trim(tmp_char)
+    write(999,*) ''
+    write(999,*) 'Write: ', trim(tmp_char)
     call write_ascii_grid(tmp_char, riv_dist_grid, &
         ncols, nrows, &
         xllcorner, yllcorner, cellsize, -99.0d0, 3);
 
     CALL timer_get(start_time)
+        print *, 'Headwater Pass 2'
+    write(999,*) 'Headwater Pass 2'
     call river_find_headwater_pass2(nrows, ncols, &
         riv_dist_grid, headwater_pass1, cellsize, &
         search_dist, move_downstream_dist, &
         headwater_pass2)
     CALL timer_get(end_time)
-    call timer_print('headwater_pass2', start_time, end_time)
+    !call timer_print('headwater_pass2', start_time, end_time)
 
     ! save headwater list (pass 2)
+    print *, 'Writing Headwater List'
+    write(999,*) 'Writing Headwater List'
     write (tmp_char,'(A,A,I0,''m_'',I0,''m.txt'')') &
         trim(output_riv_file_prefix), &
         '_HW_',  &
@@ -307,7 +335,11 @@ program river_find_hw
     call write_point_list(tmp_char, headwater_pass2, nrows, xllcorner, yllcorner, cellsize)
 
     CALL timer_get(end_time)
-    call timer_print('river_find_hw', run_start_time, end_time)
+    !call timer_print('river_find_hw', run_start_time, end_time)
+
+    print *, '--- Finished river_find_hw ---'
+    write(999,*) 'Successfully finished river_find_hw.f90'
+    close(999)
 
     stop
 

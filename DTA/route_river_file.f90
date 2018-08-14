@@ -22,10 +22,10 @@ program route_river_file
     type(time_type) :: start_time, end_time, run_start_time
 
     CHARACTER(len=1024) :: arg
-    integer :: i
+    integer :: i, ioerr
 
     integer, allocatable, dimension(:,:) :: riv_id_grid
-    double precision, allocatable, dimension(:,:) :: area_grid
+    double precision, allocatable, dimension(:,:) :: area_grid, dem_grid
     type(riv_tree_node), allocatable :: node_list(:)
     type(point_list_type), allocatable, dimension(:) :: river_point_lists
     integer :: total_river_cells
@@ -51,9 +51,9 @@ program route_river_file
     col_headers(1) = 'riv_id'
     col_headers(2) = 'area'
     col_headers(3) = 'dist'
-    col_headers(4) = 'secion_dist'
-    col_headers(5) = 'slope'
-    col_headers(6) = 'elevation'
+    col_headers(4) = 'section_dist'
+    col_headers(5) = 'elevation'
+    col_headers(6) = 'slope'
 
     CALL timer_get(run_start_time)
 
@@ -70,8 +70,21 @@ program route_river_file
 
     input_is_valid = .true.
 
-    i = 0
-    print *, '--- route_river_file ---'
+    tmp_char = 'DTA_route_river_file.log'
+    open(999, file = tmp_char, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(999,*) '--- route_river_file.f90 ---'
+    write(999,*) ''
+    print *, '--- Starting route_river_file ---'
+
+    i=0
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -123,12 +136,20 @@ program route_river_file
         in_riv_dist_file = trim(dem_output_prefix)//'_riv_dist.asc'
     endif
 
-    print *, 'dem file:', trim(in_dem_file)
+    print *, 'dem file: ', trim(in_dem_file)
     print *, 'river id file: ', trim(in_riv_id_file)
     print *, 'flow connection file: ', trim(flow_conn_file)
     print *, 'flow point file: ', trim(flow_point_file)
     print *, 'area file: ', trim(in_area_file)
     print *, 'river dist file: ', trim(in_riv_dist_file)
+
+    write(999,*) 'dem file:', trim(in_dem_file)
+    write(999,*) 'river id file: ', trim(in_riv_id_file)
+    write(999,*) 'flow connection file: ', trim(flow_conn_file)
+    write(999,*) 'flow point file: ', trim(flow_point_file)
+    write(999,*) 'area file: ', trim(in_area_file)
+    write(999,*) 'river dist file: ', trim(in_riv_dist_file)
+    write(999,*) ''
 
     if(file_exists(flow_conn_file).eqv..false.) then
         print*,'Missing: ', trim(flow_conn_file)
@@ -147,16 +168,16 @@ program route_river_file
         stop
     endif
 
-    print *, 'read river id grid: ', trim(in_riv_id_file)
+    !print *, 'read river id grid: ', trim(in_riv_id_file)
+    write(999,*) 'read river id grid: ', trim(in_riv_id_file)
     CALL timer_get(start_time)
     call read_ascii_grid_int(in_riv_id_file, riv_id_grid, &
         ncols, nrows, xllcorner, yllcorner, cellsize, int_nodata)
     CALL timer_get(end_time)
-    call timer_print('read river grid', start_time, end_time)
+    !call timer_print('read river grid', start_time, end_time)
 
-
-    print *, 'read flow tree:', &
-        trim(flow_conn_file), &
+    write(999,*) 'read flow tree:', &
+        trim(flow_conn_file), '', &
         trim(flow_point_file)
 
     call riv_tree_read(node_list, &
@@ -164,7 +185,7 @@ program route_river_file
         flow_conn_file, flow_point_file)
 
     allocate(river_point_lists(size(node_list)))
-    print *, 'routing_file_find_rivers'
+    !print *, 'routing_file_find_rivers'
     call routing_file_find_rivers(nrows, ncols, node_list, riv_id_grid, &
         river_point_lists, total_river_cells)
 
@@ -215,27 +236,40 @@ program route_river_file
     call read_ascii_grid(in_riv_dist_file, riv_dist_grid, &
         ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read river dist grid', start_time, end_time)
+    !call timer_print('read river dist grid', start_time, end_time)
 
-    print *, 'read area grid: ', trim(in_area_file)
+    write(999,*) 'read area grid: ', trim(in_area_file)
     CALL timer_get(start_time)
     call read_ascii_grid(in_area_file, area_grid, &
         ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read dem grid', start_time, end_time)
+    !call timer_print('read dem grid', start_time, end_time)
 
-    print *, 'routing_file_grids_to_list'
+    write(999,*) 'read dem: ', trim(in_dem_file)
+    CALL timer_get(start_time)
+    call read_ascii_grid(in_dem_file, dem_grid, &
+        ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
+    CALL timer_get(end_time)
+
+    !print *, 'routing_file_grids_to_list'
     call routing_file_grids_to_list(nrows, ncols, node_list, river_point_lists, total_river_cells, &
-        riv_dist_grid, area_grid, river_data)
+        riv_dist_grid, area_grid, dem_grid, river_data)
 
     tmp_char = trim(dem_output_prefix)//'_river_data.txt'
 
     print *, 'write ', trim(tmp_char)
+    write(999,*) 'write ', trim(tmp_char)
     call write_numeric_list(tmp_char, col_headers, river_data, 3)
 
     CALL timer_get(end_time)
 
-    call timer_print('route_river', run_start_time, end_time)
+
+    write(999,*) ''
+    write(999,*) 'Successfully finished route_river_file.f90'
+    print *, '--- Finished route_river_file ---'
+    close(999)
+
+    !call timer_print('route_river', run_start_time, end_time)
 
     stop
 

@@ -1,6 +1,6 @@
 !% Toby Dunne
 !% Mar 2016
-! Stack datatype
+! really behaves like a stack not a queue
 ! last in first out
 module dta_stack
     use dta_utility

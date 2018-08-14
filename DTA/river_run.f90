@@ -19,7 +19,7 @@ program river_run
     double precision, allocatable, dimension(:,:) :: headwater_input
     type(point_type), allocatable, dimension(:) :: headwater_points
 
-    integer :: ncols, nrows
+    integer :: ncols, nrows, ioerr
     double precision :: xllcorner, yllcorner, cellsize
     double precision :: double_nodata
     type(time_type) :: start_time, end_time, run_start_time
@@ -32,7 +32,20 @@ program river_run
     input_is_valid = .true.
 
     i = 0
-    print *, '--- river_run ---'
+
+    tmp_char = 'DTA_river_run.log'
+    open(999, file = tmp_char, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(999,*) '--- river_run.f90 ---'
+    write(999,*) ''
+    print *, '--- Starting river_run ---'
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -59,16 +72,25 @@ program river_run
         stop
     endif
 
+    write(999,*) 'Command Options Read In'
+    write(999,*) 'in_dem: ', trim(in_dem_file)
+    write(999,*) 'in_headwater: ', trim(hw_input_file)
+    write(999,*) ''
+
     print *, 'in_dem: ', trim(in_dem_file)
     print *, 'in_headwater: ', trim(hw_input_file)
 
     print *, 'read dem grid: ', trim(in_dem_file)
+    write(999,*) 'read dem grid: ', trim(in_dem_file)
+
     CALL timer_get(start_time)
     call read_ascii_grid(in_dem_file, dem_grid, &
         ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read dem grid', start_time, end_time)
+    !call timer_print('read dem grid', start_time, end_time)
 
+    print *, 'read headwater list: ', trim(hw_input_file)
+    write(999,*) 'read headwater list: ', trim(hw_input_file)
     call read_numeric_list(hw_input_file, 2, 1, headwater_input)
 
     ! Convert northing easting to row col (point)
@@ -85,26 +107,23 @@ program river_run
     allocate(riv_label_grid(nrows, ncols))
 
     CALL timer_get(start_time)
+
+    print *, 'Creating river layer from ', size(headwater_input, 1), ' headwaters'
+    write(999,*) 'Creating river layer from ', size(headwater_input, 1), ' headwaters'
+
     call river_single_flow(nrows, ncols, dem_grid, headwater_points, riv_label_grid, cellsize)
     CALL timer_get(end_time)
-    call timer_print('river_single_flow', start_time, end_time)
-
-
-!
-!        CALL timer_get(start_time)
-!        call river_label_unique(nrows, ncols, headwater_points, riv_label_grid)
-!        CALL timer_get(end_time)
-!        call timer_print('river_label_unique', start_time, end_time)
 
         tmp_char = in_dem_file(1:len_trim(in_dem_file)-4)//'_riv.asc'
 
         print*,'Write: ', trim(tmp_char)
+        write(999,*) 'Write: ', trim(tmp_char)
         call write_ascii_grid_int(tmp_char, riv_label_grid, &
             ncols, nrows, &
             xllcorner, yllcorner, cellsize, 0);
 
         CALL timer_get(end_time)
-        call timer_print('river_run', run_start_time, end_time)
+        !call timer_print('river_run', run_start_time, end_time)
 
 !allocate(riv_mask_grid(nrows,ncols))
 
@@ -113,6 +132,10 @@ program river_run
 
 !    deallocate(riv_label_grid)
 
+    print *, '--- Finished river_run ---'
+    write(999,*) ''
+    write(999,*) 'Successfully finished river_run.f90'
+    close(999)
 
     stop
 

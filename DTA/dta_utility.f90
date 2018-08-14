@@ -79,7 +79,7 @@ contains
         type(time_type) :: start_time, now_time, last_print_time
         real :: elapsedTime, estimatedTime, remainingTime
 
-1502    format ('progress:',I0,'(',F0.1,'%) elapsed:',F0.1,'s est.:',F0.1,'s remaining:',F0.1,'s')
+1502 format ('progress:',I0,'(',F0.1,'%) elapsed:',F0.1,'s est.:',F0.1,'s remaining:',F0.1,'s')
 
         if(timer_diff_wall(last_print_time, now_time) > 15) then
             last_print_time = now_time
@@ -429,6 +429,7 @@ contains
         open (99, file = filename, status = 'unknown', iostat=ioerr)
 
         if(ioerr/=0) then
+            print *,ioerr
             print*,'error opening output file: ', trim(filename)
             print*,'ensure the directory exists and correct write permissions are set'
             stop
@@ -707,7 +708,7 @@ contains
         enddo
 
 60      FORMAT(A, i0)
-61      FORMAT(A, f0.1)
+61      FORMAT(A, f0.3)
         !62      FORMAT(A, f0.3)
 
         close (99)
@@ -795,7 +796,7 @@ contains
         enddo
 
 60      FORMAT(A, i0)
-61      FORMAT(A, f0.1)
+61      FORMAT(A, f0.3)
 62      FORMAT(A, i0)
 
         close (99)
@@ -1120,26 +1121,18 @@ contains
                                 .or. x_n <1 .or. x_n > ncols) then
                                 cycle
                             endif
-                            ! flow direction for cells next to see will always go to sea
-                            !
-                            ! This is disabled for island catchments
-                            ! cut catchments should not have a nodata border
-!                            if (dem(y_n, x_n) < -90) then
-!                                cycle
-!                            endif
-
-                            ! if flat no disable flow
-                            if(abs(dem(y,x) - dem(y_n, x_n)) < 0.00001) then
+                            if (dem(y_n, x_n) < -90) then
                                 cycle
                             endif
 
-                            if (xl == 0 .or. yl == 0) then
+                            if(xl == 0 .or. yl == 0) then
                                 dist = dist_cardinal
                             else
                                 dist = dist_ordinal
                             endif
 
                             slope = (dem(y,x) - dem(y_n, x_n)) / dist
+
                             if (slope > max_slope) then
                                 max_slope = slope
                                 max_slope_index = neighbour_index

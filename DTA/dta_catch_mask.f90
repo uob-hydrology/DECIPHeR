@@ -7,7 +7,7 @@ contains
 
     recursive subroutine add_catch_mask(nrows, ncols, mask_dirs, &
         node_list, this_node, &
-        mask_grid, xllcorner, yllcorner, cellsize)
+        mask_grid, xllcorner, yllcorner, cellsize, fp)
         use dta_riv_tree_node
         use dta_utility
         implicit none
@@ -15,7 +15,7 @@ contains
         integer :: ncols
         character(1024), intent(in) :: mask_dirs(:)
         type(riv_tree_node), intent(inout) :: node_list(:)
-        integer, intent(in)::this_node
+        integer, intent(in)::this_node, fp
         integer, intent(inout) :: mask_grid(nrows,ncols)
         double precision, intent(in) :: xllcorner, yllcorner, cellsize
 
@@ -63,10 +63,10 @@ contains
         end do
 
         if(found.eqv..false.) then
-            print*, 'WARNING missing catchment mask file: ', &
+            write(fp,*) 'WARNING missing catchment mask file: ', &
                 node_list(this_node)%gauge_id, 'type: ',node_list(this_node)%node_type
         else
-            print*, 'USE:', trim(mask_filename)
+            write(fp,*) 'USE:', trim(mask_filename)
 
             call read_ascii_grid(mask_filename, this_mask, &
                 this_ncols, this_nrows, this_xllcorner, this_yllcorner, this_cellsize, this_nodata)
@@ -105,7 +105,7 @@ contains
 
             call add_catch_mask(nrows, ncols, mask_dirs, &
                 node_list, up_index, &
-                mask_grid, xllcorner, yllcorner, cellsize)
+                mask_grid, xllcorner, yllcorner, cellsize, fp)
         end do
 
     end subroutine

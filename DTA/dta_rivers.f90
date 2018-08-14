@@ -1,5 +1,3 @@
-!% Toby Dunne
-!% Apr 2016
 module dta_rivers
     implicit none
 contains
@@ -44,7 +42,7 @@ contains
 
         do i=1,size(outlet_points)
 
-            print*,'outlet', i,'----------------------', outlet_points(i)%y, outlet_points(i)%x
+            !print*,'outlet', i,'----------------------', outlet_points(i)%y, outlet_points(i)%x
             loop_count_check = 0
 
             ! only start if river is not labelled
@@ -94,7 +92,7 @@ contains
                                     ! in the case of checking outlets,
                                     !   already processed cells can be overwritten when further from the sea
                                     !
-                                    print*,'already processed',riv_dist_grid(y_n,x_n), loop_count_check,y_n,x_n
+                                    !print*,'already processed',riv_dist_grid(y_n,x_n), loop_count_check,y_n,x_n
                                     cycle
                                 endif
 
@@ -107,7 +105,7 @@ contains
 
                                 point%x = x_n
                                 point%y = y_n
-                                ! print*,'push',y_n,x_n
+                                !print*,'push',y_n,x_n
                                 call stack%push(point)
 
                             endif
@@ -149,7 +147,7 @@ contains
         queue = new_stack()
 
         !% starting cells are all river cells that are next to nodata values
-        print *, 'find starting cells (any river cell next to a sea=nodata)'
+        !print *, 'find starting cells (any river cell next to a sea=nodata)'
 
         do row=1,nrows
             do col=1,ncols
@@ -189,7 +187,7 @@ contains
             end do
         end do
 
-        print *, 'found outlets', queue%item_count
+        !print *, 'found outlets', queue%item_count
 
         allocate(sea_outlets(queue%item_count))
         call queue%to_array(sea_outlets)
@@ -256,7 +254,7 @@ contains
         !% estimated total add 10% some items are requeued
         !progress = progress_display(total_river_cells * 1.1);
 
-        print *, 'calculate pass 1 headwaters and river cell distance to sea'
+        !print *, 'calculate pass 1 headwaters and river cell distance to sea'
 
         dist_cardinal = 1
         dist_ordinal = sqrt(2.0d0)
@@ -326,7 +324,7 @@ contains
         call hw_pass1_queue%to_array(headwater_pass1)
         call hw_pass1_queue%free()
 
-        print *, 'finished pass 1 headwaters and river cell distance to sea'
+        !print *, 'finished pass 1 headwaters and river cell distance to sea'
 
     end subroutine river_find_headwater_pass1
 
@@ -413,7 +411,7 @@ contains
 
         !progress_count=0;
 
-        print *, 'headwater from pass 1', size(headwater_pass1)
+        !print *, 'headwater from pass 1', size(headwater_pass1)
 
         do i=1,size(headwater_pass1)
             !progress_count = progress_count+1;
@@ -533,7 +531,7 @@ contains
 
         call openCells%free()
 
-        print *, 'pass 2 complete'
+        !print *, 'pass 2 complete'
 
         !% trim river_find_headwater_pass2 to the actual number found
         !headwater_pass2_yx = headwater_pass2_yx(1:headwater_i2,:);
@@ -577,7 +575,7 @@ contains
 
         riv_label_grid(:,:) = 0
 
-        print *, 'river_single_flow from ',size(headwater),'headwaters'
+        !print *, 'river_single_flow from ',size(headwater),'headwaters'
 
         !% Set all NaNs to -90
         where(dem_grid < -90) riv_label_grid = -99
@@ -682,31 +680,25 @@ contains
 
                     riv_value = riv_label_grid(y_n, x_n)
 
-                    ! river cell already labelled with this label
-                    if (riv_value == label) then
+                    !if(enable_find_link.eqv..false.) then
+                    !% already labelled as this river segment
+                    !% handle flat areas (should not be in sink fill noflat dem_grid)
+                    if(riv_value == label) then
                         cycle
                     endif
+                    !endif
 
-                    ! river joins the sea (even if single flow direction goes elsewhere)
-                    if (riv_value < -90) then
-                        isdone = .true.
-                        exit
-                    endif
-
-                    if (enable_fast_join_neighbour) then
+                    if(enable_fast_join_neighbour) then
                         !% if any neighbour is nodata or joins to an exising river
                         !% cell, then join to this regardless of slope
                         !% this ensures no clumping and clean junctions in D8
                         ! this check is no longer required
-                        if(((riv_value > 0) .and. (riv_value /= label))) then
+                        if(riv_value < -90 .or. &
+                            ((riv_value > 0) .and. (riv_value /= label))) then
+                            ! x_end, y_end set to the joined river cell
                             isdone = .true.
                             exit
                         endif
-                    endif
-
-                    ! if flat disable flow
-                    if (abs(dem_grid(y,x) - dem_grid(y_n, x_n)) < 0.00001) then
-                        cycle
                     endif
 
                     if (xl == 0 .or. yl == 0) then
@@ -714,7 +706,6 @@ contains
                     else
                         dist = dist_ordinal
                     endif
-
                     slope = (dem_grid(y, x) - dem_grid(y_n, x_n)) / dist
                     if (slope > max_slope) then
                         max_slope = slope
@@ -723,7 +714,7 @@ contains
                     endif
                 enddo
             enddo
-            if ((isdone.eqv..false.).and. max_slope < 0) then
+            if ((isdone.eqv..false.).and. max_slope<0) then
                 ! when at edge
                 !print *, 'max gradient ', max_slope
                 isdone = .true.

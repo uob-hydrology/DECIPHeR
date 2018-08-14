@@ -25,9 +25,9 @@ program catch_mask
     integer, allocatable :: manual_outlet_id_list(:)
     character(1024), allocatable:: manual_outlet_id_list_char(:)
     logical, allocatable:: manual_start(:)
-    integer :: i, j
+    integer :: i, j, ioerr, fp
     integer :: start_count
-    character(1024) arg
+    character(1024) arg, tmp_char
     logical input_is_valid
 
     character(1024), allocatable :: mask_dirs(:)
@@ -41,6 +41,7 @@ program catch_mask
     type(riv_tree_node), allocatable :: node_list(:)
 
     start_count = 0
+    fp=999
     !call utility_test
 
     in_dem_file = ''
@@ -49,8 +50,21 @@ program catch_mask
 
     input_is_valid = .true.
 
-    i = 0
-    print *, '--- catch_mask ---'
+    tmp_char = 'DTA_catch_mask.log'
+    open(fp, file = tmp_char, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(fp,*) '--- catch_mask.f90 ---'
+    write(fp,*) ''
+    print *, '--- Starting catch_mask ---'
+
+    i=0
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -120,13 +134,18 @@ program catch_mask
 
     print *, 'read flow tree: ', &
         trim(flow_conn_file), &
-        trim(flow_point_file)
+        '', trim(flow_point_file)
+    print *, 'Mask Directory : ', trim(input_mask_dirs)
+
+    write(fp,*) 'Mask Directory : ', trim(input_mask_dirs)
+    write(fp,*) 'read flow tree: ', &
+        trim(flow_conn_file), &
+        '', trim(flow_point_file)
+    write(fp,*) ''
 
     call riv_tree_read(node_list, &
         nrows, xllcorner, yllcorner, cellsize, &
         flow_conn_file, flow_point_file)
-
-    print *, 'read flow tree: done'
 
 
     do i=1,size(node_list)
@@ -146,11 +165,11 @@ program catch_mask
         endif
 
         if(is_start_catchment) then
-            print*,'START: ',node_list(i)%gauge_id,'type: ', node_list(i)%node_type
+            !write(fp,*) 'START: ',node_list(i)%gauge_id,'type: ', node_list(i)%node_type
             start_count = start_count + 1
             call add_catch_mask(nrows, ncols, mask_dirs, &
                 node_list, i, &
-                mask_grid, xllcorner, yllcorner, cellsize)
+                mask_grid, xllcorner, yllcorner, cellsize, fp)
         endif
 
     end do
@@ -162,7 +181,7 @@ program catch_mask
     if(allocated(manual_outlet_id_list)) then
         do i=1,size(manual_outlet_id_list)
             if(manual_start(i).eqv..false.) then
-                print*,'WARNING: start point not used: ', manual_outlet_id_list(i)
+                write(999,*) 'WARNING: start point not used: ', manual_outlet_id_list(i)
             endif
         end do
     endif
@@ -170,6 +189,8 @@ program catch_mask
     arg = in_dem_file(1:len_trim(in_dem_file)-4)//'_mask.asc'
 
     print*,'write: ', trim(arg)
+    write(fp,*) ''
+    write(fp,*) 'write: ', trim(arg)
     call write_ascii_grid_int(arg, mask_grid, &
         ncols, nrows, &
         xllcorner, yllcorner, cellsize, 0)
@@ -178,7 +199,12 @@ program catch_mask
     deallocate(mask_grid)
 
     CALL timer_get(end_time)
-    call timer_print('catch_mask', run_start_time, end_time)
+    !call timer_print('catch_mask', run_start_time, end_time)
+
+    write(fp,*) ''
+    write(fp,*) 'Successfully finished catch_mask.f90'
+    print *, '--- Finished catch_mask ---'
+    close(fp)
 
     stop
 

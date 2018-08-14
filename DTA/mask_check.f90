@@ -38,9 +38,21 @@ program catch_mask
 
     input_is_valid = .true.
 
+    tmp_char = 'DTA_mask_check.log'
+    open(999, file = tmp_char, status="unknown", action="write", iostat=ioerr)
 
-    i = 0
-    print *, '--- mask_check ---'
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(999,*) '--- mask_check.f90 ---'
+    write(999,*) ''
+    print *, '--- Starting mask_check ---'
+
+    i=0
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -71,6 +83,13 @@ program catch_mask
 
     CALL timer_get(run_start_time)
 
+    write(999,*) 'read : ', trim(in_mask_file)
+    write(999,*) 'read : ', trim(in_riv_id_file)
+    write(999,*) ''
+
+    print *, 'read : ', trim(in_mask_file)
+    print *, 'read : ', trim(in_riv_id_file)
+
     call read_ascii_grid_int(in_mask_file, mask_grid, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
     call read_ascii_grid_int(in_riv_id_file, riv_id_grid, &
         riv_ncols, riv_nrows, riv_xllcorner, riv_yllcorner, riv_cellsize, riv_nodata)
@@ -84,19 +103,6 @@ program catch_mask
         print*,' ascii grids do sizes do not match'
         stop
     endif
-
-    tmp_char = in_riv_id_file(1:len_trim(in_riv_id_file)-4)//'_check_log.txt'
-
-    open(999, file = tmp_char, status="unknown", action="write", iostat=ioerr)
-
-    if(ioerr/=0) then
-        print*,'error opening output file: ', trim(tmp_char)
-        print*,'ensure the directory exists and correct write permissions are set'
-        stop
-    endif
-
-    write(999,*) 'x_easting',tab, 'y_northing',tab, 'x',tab,'y',tab,'expect_id',tab,'actual_id'
-
 
 61  FORMAT(f0.1,A,f0.1,4(A,I0))
 
@@ -115,16 +121,19 @@ program catch_mask
 
                         call RowColToNorthingEasting(y, x, &
                             nrows, xllcorner, yllcorner, cellsize, &
-                            y_northing, x_easting, .true.)
+                            x_easting, y_northing, .true.)
 
-                        print *, 'WARNING: bad river id (logged)',x_easting, y_northing, x, y, mask_grid(y,x), riv_id_grid(y,x)
+                        !print *, 'WARNING: bad river id (logged)',x_easting, y_northing, x, y, mask_grid(y,x), riv_id_grid(y,x)
+                        if (bad_count.lt.1) then
+                        write(999,*) 'x_easting',tab, 'y_northing',tab, 'x',tab,'y',tab,'expect_id',tab,'actual_id'
+                        end if
+
                         write (999, 61) x_easting, tab, &
                                         y_northing, tab, &
                                         x, tab, &
                                         y, tab, &
-                                        mask_grid(y,x),tab, &
-                                        riv_id_grid(y,x)
-
+                                                       mask_grid(y,x),tab, &
+                                                       riv_id_grid(y,x)
                         riv_id_grid(y,x) = riv_nodata
 
                         bad_count = bad_count + 1
@@ -134,22 +143,27 @@ program catch_mask
             endif
         end do
     end do
-    close(999)
 
     if(bad_count > 0) then
         print*,'River cells found on non matching mask', bad_count
-        print*,'See log :', trim(tmp_char)
+        print*,'See mas_check.log'
     endif
 
     tmp_char = in_riv_id_file(1:len_trim(in_riv_id_file)-4)//'_check.asc'
 
     print*,'write: ', trim(tmp_char)
+    write(999,*) 'write: ', trim(tmp_char)
     call write_ascii_grid_int(tmp_char, riv_id_grid, &
         ncols, nrows, &
         xllcorner, yllcorner, cellsize, riv_nodata)
 
     CALL timer_get(end_time)
-    call timer_print('catch_mask', run_start_time, end_time)
+    !call timer_print('catch_mask', run_start_time, end_time)
+
+    write(999,*) ''
+    write(999,*) 'Successfully finished mask_check.f90'
+    print *, '--- Finished mask_check ---'
+    close(999)
 
     stop
 
