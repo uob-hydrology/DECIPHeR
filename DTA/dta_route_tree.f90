@@ -12,7 +12,7 @@ contains
         riv_dist_grid, &
         river_reach_increment_m, river_reach_increment_m_min, &
         point_col_id, &
-        node_list, riv_label_grid)
+        node_list, riv_label_grid, fp)
         !%ROUTING_DTA Create routing tree structure
         !%   by linking linkages based on where they sit on the river
         !%   dem_grid - should be masked to catchment boundary - to ensure river cells are
@@ -43,24 +43,24 @@ contains
 
         !locals
         integer :: outlet_count
-        integer :: i
+        integer :: i, jj
         integer :: point_row, point_col
         integer :: existing_gauge_id
         type(riv_tree_node), allocatable :: node_list_copy(:)
         type(point_type), allocatable :: reach_intervals(:)
         integer :: down
         integer :: remove_count
-        integer :: node_index
+        integer :: node_index, upstream_index
         integer :: gauge_end_index
         integer :: new_length
-        integer :: x, y
+        integer :: x, y, fp
 
         double precision :: river_reach_increment_cells
 
         outlet_count = size(sea_outlets)
 
-        print *, 'point_list size', size(point_row_list,1)
-        print *, 'sea_outlets size', outlet_count
+        !print *, 'point_list size', size(point_row_list,1)
+        !print *, 'sea_outlets size', outlet_count
         !% flat list of all gauge nodes and outlets
         new_length = outlet_count + size(point_row_list,1)
         allocate(node_list(new_length))
@@ -85,7 +85,7 @@ contains
 
             if(riv_label_grid(point_row, point_col) /= -1) then
                 if(riv_mask(point_row, point_col) .eqv..false.) then
-                    print *, 'gauge not on river cell:', point_row_list(i,point_col_id)
+                    write(fp,*) 'gauge not on river cell:', point_row_list(i,point_col_id)
 
                     !old_value = riv(point_row(i), point_col(i));
                     !riv(point_row(i), point_col(i)) = 1;
@@ -94,7 +94,7 @@ contains
                 else
                     existing_gauge_id = nint(point_row_list(riv_label_grid(point_row, point_col),point_col_id))
                     !% note this shouldn't occurr as pre-processor filters these out
-                    print *, 'gauge located on existing gauge: this gauge: ', &
+                    write(fp,*) 'gauge located on existing gauge: this gauge: ', &
                         nint(point_row_list(i,point_col_id)), existing_gauge_id
 
                     !old_value = riv(point_row(i), point_col(i));
@@ -140,7 +140,7 @@ contains
             do i=1,size(reach_intervals)
 
                 if (riv_label_grid(reach_intervals(i)%y, reach_intervals(i)%x) /= -1) then
-                    print *, 'calculated reach increment not on river cell'
+                    write(fp,*) 'calculated reach increment not on river cell'
                     !%riv(point_row(i), point_col(i)) = 1;
                     !show_debug_grid(riv, point_row(i), point_col(i), 10, 'none', 0);
                 endif
@@ -159,14 +159,14 @@ contains
 
         endif
 
-        print *, 'routing_link_rivers node_list:', size(node_list)
+        write(fp,*) 'routing_link_rivers node_list:', size(node_list)
                 !call routing_link_rivers(nrows, ncols, sea_outlets, node_list, riv_label_grid )
 
         do i=1,size(node_list)
             node_list(i)%downstream_index = 0
         end do
 
-        call routing_link_rivers_sfd(nrows, ncols, flow_dir_grid, sea_outlets, node_list, riv_label_grid )
+        call routing_link_rivers_sfd(nrows, ncols, flow_dir_grid, sea_outlets, node_list, riv_label_grid, fp)
 
                 !% note riv grid is now labelled with the stations
                 !% could output here if it is useful
@@ -189,7 +189,7 @@ contains
             endif
         end do
 
-        print *, 'routing_set_node_properties:', size(node_list)
+        write(fp,*) 'routing_set_node_properties:', size(node_list)
         call routing_set_node_properties(nrows, ncols, node_list, dem_grid, riv_dist_grid)
 
         remove_count = 0
@@ -260,7 +260,7 @@ contains
 
     end subroutine routing_dta
 
-    subroutine routing_link_rivers_sfd(nrows, ncols, flow_dir_grid, sea_outlets, node_list, riv_label_grid )
+    subroutine routing_link_rivers_sfd(nrows, ncols, flow_dir_grid, sea_outlets, node_list, riv_label_grid, fp)
         !%routing_link_rivers Link river points based on where they sit on rivers
         !%   Input: sea_outlets - list of downstream points [y1,x1; y2, x2; ...]
         !%   Input: riv - river mask 0 no data, -1: normal river cell, >0 river cell
@@ -290,7 +290,7 @@ contains
         type(point_type) :: point
         integer :: node_index
         integer :: label
-        integer :: x, y
+        integer :: x, y, fp
         integer :: xl, yl, x_n, y_n
         integer :: neighbour_index
         integer :: neighbour_value
@@ -364,7 +364,7 @@ contains
                                 if (riv_label_grid(y_n,x_n) /= label) then
                                     node_list(riv_label_grid(y_n,x_n))%downstream_index = label
                                 else
-                                    print*,'node flows to self', node_list(label)%gauge_id
+                                    write(fp,*) 'node flows to self', node_list(label)%gauge_id
                                 endif
                             else if(riv_label_grid(y_n,x_n) > -90) then
                                 riv_label_grid(y_n,x_n) = label

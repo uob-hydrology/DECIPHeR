@@ -91,8 +91,21 @@ program catch_cut
 
     input_is_valid = .true.
 
-    i = 0
-    print *, '--- catch_cut ---'
+    tmp_char = 'DTA_catch_cut.log'
+    open(999, file = tmp_char, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(999,*) '--- catch_cut.f90 ---'
+    write(999,*) ''
+    print *, '--- Starting catch_cut ---'
+
+    i=0
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -154,26 +167,30 @@ program catch_cut
     point_data_col_type = 4
 
     print *, 'read point list: ', trim(list_input_file)
+    write(999,*) 'read point list: ', trim(list_input_file)
     CALL timer_get(start_time)
     call read_numeric_list(list_input_file, 4, 1, point_data)
     CALL timer_get(end_time)
-    call timer_print('read point list', start_time, end_time)
+    !call timer_print('read point list', start_time, end_time)
 
     print *, 'read dem grid: ', trim(in_dem_file)
+    write(999,*) 'read dem grid: ', trim(in_dem_file)
     CALL timer_get(start_time)
     call read_ascii_grid(in_dem_file, dem_grid, &
         ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read dem grid', start_time, end_time)
+    !call timer_print('read dem grid', start_time, end_time)
 
     allocate (flow_dir_grid(nrows,ncols))
     allocate (slope_grid(nrows,ncols))
 
     print *, 'calc_flow_direction'
+    write(999,*) ''
+    write(999,*) 'calculating flow direction'
     CALL timer_get(start_time)
     call calc_flow_direction(nrows, ncols, dem_grid, cellsize, flow_dir_grid, slope_grid)
     CALL timer_get(end_time)
-    call timer_print('calc_flow_direction', start_time, end_time)
+    !call timer_print('calc_flow_direction', start_time, end_time)
 
     ! no longer need dem
     deallocate(dem_grid)
@@ -187,41 +204,6 @@ program catch_cut
     !        xllcorner, yllcorner, cellsize, -9999.0d0, 5)
     !
     deallocate(slope_grid)
-    !
-    !    tmp_char = in_dem_file(1:len_trim(in_dem_file)-4)//'_sfd.asc'
-    !
-    !    allocate(flow_dir_grid_int(nrows,ncols))
-    !
-    !    flow_dir_grid_int = flow_dir_grid
-    !    ! 127 is max in a fortran byte
-    !    ! change to 128 to match arcgis direction value
-    !    where(flow_dir_grid == 127) flow_dir_grid_int = 128
-    !
-    !    print *, 'write:', trim(tmp_char)
-    !    call write_ascii_grid_int(tmp_char, flow_dir_grid_int, &
-    !        ncols, nrows, &
-    !        xllcorner, yllcorner, cellsize, 0)
-    !
-    !    tmp_char = in_dem_file(1:len_trim(in_dem_file)-4)//'_sfd_dir_deg.asc'
-    !
-    !    !   conversion to degrees - for arrow visualisation in arcgis
-    !    !   flow_dir_grid_int(:,:) = -9999
-    !    !   where(flow_dir_grid == 1) flow_dir_grid_int = 90
-    !    !   where(flow_dir_grid == 2) flow_dir_grid_int = 135
-    !    !   where(flow_dir_grid == 4) flow_dir_grid_int = 180
-    !    !   where(flow_dir_grid == 8) flow_dir_grid_int = 225
-    !    !   where(flow_dir_grid == 16) flow_dir_grid_int = 270
-    !    !   where(flow_dir_grid == 32) flow_dir_grid_int = 315
-    !    !   where(flow_dir_grid == 64) flow_dir_grid_int = 0
-    !    !   where(flow_dir_grid == 127) flow_dir_grid_int = 45
-    !    !
-    !    !    print *, 'write:', trim(tmp_char)
-    !    !    call write_ascii_grid_int(tmp_char, flow_dir_grid_int, &
-    !    !        ncols, nrows, &
-    !    !        xllcorner, yllcorner, cellsize, 0)
-    !
-    !    deallocate(flow_dir_grid_int)
-
 
     ! array to write the catchment mask (flow lengths)
     allocate (mask_grid(nrows,ncols))
@@ -233,6 +215,7 @@ program catch_cut
     result_file = trim(output_dir) // 'mask_info.txt'
 
     print *, 'results file: ', trim(result_file)
+    write(999,*) 'results file: ', trim(result_file)
 
     ! result file
     ! this file contains all the catchment outlet points on the river cells
@@ -244,7 +227,6 @@ program catch_cut
         stop
     endif
 
-       ! write header to file
     write (100, 97) 'catchment', tab,&
         'x_easting', tab, &
         'y_northing', tab,&
@@ -254,13 +236,13 @@ program catch_cut
         'reason'
 
     ! write header to terminal
-    write (*, 97) 'catchment', tab, &
-        'x_easting', tab, &
-        'y_northing', tab, &
-        'node_type', tab, &
-        'calc_area_m2', tab, &
-        'out_of_bound', tab, &
-        'reason'
+    !write (*, 97) 'catchment', tab, &
+    !    'x_easting', tab, &
+    !    'y_northing', tab, &
+    !    'node_type', tab, &
+    !    'calc_area_m2', tab, &
+    !    'out_of_bound', tab, &
+    !    'reason'
 
 
     ! format labels are a bit cryptic
@@ -372,13 +354,13 @@ program catch_cut
             else
                 candidate_out_of_bounds = 0
             endif
-            write (*, 98) catchment_id, tab, &
-                outlet_x_east, tab, &
-                outlet_y_north, tab, &
-                node_type, tab, &
-                calc_area_m2, tab,&
-                candidate_out_of_bounds, tab,&
-                trim(stop_reason)
+            !write (*, 98) catchment_id, tab, &
+            !    outlet_x_east, tab, &
+            !    outlet_y_north, tab, &
+            !    node_type, tab, &
+            !    calc_area_m2, tab,&
+            !    candidate_out_of_bounds, tab,&
+            !    trim(stop_reason)
 
             write (100, 98) catchment_id, tab, &
                 outlet_x_east, tab, &
@@ -396,7 +378,11 @@ program catch_cut
     close (100)
 
     CALL timer_get(end_time)
-    call timer_print('catch_cut', run_start_time, end_time)
+    !call timer_print('catch_cut', run_start_time, end_time)
+    write(999,*) ''
+    write(999,*) 'Successfully finished catch_cut.f90'
+    print *, '--- Finished catch_cut ---'
+    close(999)
 
     stop
 

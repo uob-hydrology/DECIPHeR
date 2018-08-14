@@ -1,6 +1,3 @@
-!% Toby Dunne
-!% Apr 2016
-
 module dta_riv_tree_node
     implicit none
     integer, parameter :: V_MODE_CONSTANT = 1
@@ -43,7 +40,8 @@ module dta_riv_tree_node
         double precision :: downstream_slope
 
         double precision :: total_downstream_delay
-        double precision :: frac_area
+        double precision :: frac_sub_area
+        double precision :: catch_area
 
     end type riv_tree_node
 

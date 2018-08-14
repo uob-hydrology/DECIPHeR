@@ -4,8 +4,6 @@ program preprocess
 
     ! This code preprocesses all the necessary data for a model run for a particular catchment
 
-    ! NB : Need to change all these to the projects directory - do this once finished
-    ! use subroutines in module
     use dta_preprocess
     use dta_utility
 
@@ -13,277 +11,458 @@ program preprocess
 
     ! Declare variables
 
-    character(len=1024) :: gauge, uk_fn, catch_fn, arg, temp_fn
-    character(len=1024) :: catchmaskfile, demfile, outputfolder, raingridfile
-    double precision, allocatable, dimension(:,:) :: catch_mask, gauges, catch_area
+    character(len=1024) :: gauge, catch_fn, arg, temp_fn, gaugelist, dta_data_fn
+    character(len=1024) :: root_fn, hru_file
+    character(len=1024) :: flowpoint_fn, rivdata_fn, flowconn_fn
+    character(len=1024) :: catchmaskfolder, outputfolder, catchmaskfile
+    double precision, allocatable, dimension(:,:) :: catch_mask
     double precision, allocatable, dimension(:,:) :: flow_conn, riv_point_data, flow_conn_catch, riv_point_data_catch
-    double precision, allocatable, dimension(:,:) :: flow_point, flow_point_catch
-    double precision, allocatable, dimension(:,:) :: catch_data, rain_grid, river_data
-    integer, allocatable, dimension(:,:) :: rain_grid_dta, catch_data_dta, river_data_dta, fu_grid, fu_table
-    double precision :: catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata, nodata_w
-    integer :: catch_ncols, catch_nrows, i
+    double precision, allocatable, dimension(:,:) :: flow_point, flow_point_catch, catch_data
+    double precision, allocatable, dimension(:,:) :: dta_data
+    double precision, allocatable, dimension(:,:) :: gauges_all
+    double precision :: xllcorner, yllcorner, cellsize, nodata, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata
+    integer :: ncols, nrows, i, catch_ncols, catch_nrows, fn_log, ioerr
     logical :: input_is_valid, writecatchfiles
-    character(64) :: col_headers(6)
+
+    type(hru_class_struct) :: hru_class(8)
+
 
     ! Set these variables to blank otherwise the error checking won't pick them up!
-    gauge = ''
-    demfile = ''
+    gaugelist = ''
+    root_fn = ''
     outputfolder = ''
-    catchmaskfile = ''
-    demfile = ''
-    raingridfile = ''
+    catchmaskfolder = ''
 
     !Initialise variables
-    nodata_w = -9999
     writecatchfiles = .true.
     input_is_valid = .true.
 
-    ! This gets the command argument from the command line - specifies the gauge ID you want to build the HRUs for
-    i = 0
+    temp_fn = 'DTA_preprocess.log'
+    fn_log = 999
+    open(fn_log, file = temp_fn, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(temp_fn)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(fn_log,*) '--- preprocess.f90 ---'
+    write(fn_log,*) ''
+    print *, '--- Starting preprocess ---'
+
+    i=0
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
-        if (are_equal(arg, '-gauge')) then
-            CALL get_command_argument(i+1, gauge)
-        else if (are_equal(arg, '-catchmaskfile')) then
-            CALL get_command_argument(i+1, catchmaskfile)
+        if (are_equal(arg, '-gaugelist')) then
+            CALL get_command_argument(i+1, gaugelist)
+        else if (are_equal(arg, '-hru_class_file')) then
+            CALL get_command_argument(i+1, hru_file)
+        else if (are_equal(arg, '-root_fn')) then
+            CALL get_command_argument(i+1, root_fn)
+        else if (are_equal(arg, '-catchmask_folder')) then
+            CALL get_command_argument(i+1, catchmaskfolder)
+        else if (are_equal(arg, '-output_folder')) then
+            CALL get_command_argument(i+1, outputfolder)
         else if (are_equal(arg, '-disable_writecatchfiles')) then
             writecatchfiles = .false.
-            !CALL get_command_argument(i+1, writecatchfiles)
-        else if (are_equal(arg, '-dem')) then
-            CALL get_command_argument(i+1, demfile)
-        else if (are_equal(arg, '-raingridfile')) then
-            CALL get_command_argument(i+1, raingridfile)
-        else if (are_equal(arg, '-outputfolder')) then
-            CALL get_command_argument(i+1, outputfolder)
         endif
         i = i + 1
     enddo
 
-    if (len_trim(gauge) == 0) then
-        print *, '-gauge not specified'
+    if (len_trim(gaugelist) == 0) then
+        print *, '-gaugelist not specified'
         input_is_valid = .false.
-    else if (len_trim(catchmaskfile) == 0) then
-        print *, '-catchmaskfile not specified'
+    else if (len_trim(hru_file) == 0) then
+        print *, '-hru_class_file not specified'
         input_is_valid = .false.
-    else if (len_trim(demfile) == 0) then
-        print *, '-dem not specified'
-        input_is_valid = .false.
-        else if (len_trim(raingridfile) == 0) then
-        print *, '-raingridfile not specified'
+    else if (len_trim(root_fn) == 0) then
+        print *, '-root_fn not specified'
         input_is_valid = .false.
     else if (len_trim(outputfolder) == 0) then
-        print *, '-outputfolder not specified'
+        print *, '-output_folder not specified'
+        input_is_valid = .false.
+    else if (len_trim(catchmaskfolder) == 0) then
+        print *, '-catchmask_folder not specified'
         input_is_valid = .false.
     endif
 
     if(input_is_valid .eqv. .false.) then
         print *, 'dta_preprocess command options '
-        print *, '-gauge <gauge id>   select gauge ID'
-        print *, '-catchmaskfile <catchment mask file>  select catchment mask file'
-        print *, '-demfile <dem file>   select dem'
-        print *, '-outputfolder <output folder>   select output folder pathway'
-        print *, '-raingridfile <rain grid file>   select the rain grid you want to use'
+        print *, '-gaugelist <gauge list>   input text file list of gauges'
+        print *, '-hru_class_file <hru_class_file>   HRU Classifiers File'
+        print *, '-catchmask_folder <catchment mask folder>  select catchment mask folder'
+        print *, '-root_fn <root_fn file>   select dem'
+        print *, '-output_folder <output folder>   select output folder pathway'
         print *, '-disable_writecatchfiles only include flag if you do not want catchment dem,atb,area,slope written out'
         stop
     endif
 
-    !  Step 1. Read in the catchment mask
+    ! STEP 1 - read in the HRU classifier file and the gauges you need to process
+    call read_hruclass_file(hru_class, hru_file, fn_log)
 
-    catchmaskfile = trim(catchmaskfile)//'.asc'
+    gaugelist = trim(gaugelist)
+    call read_numeric_list(gaugelist, 1, 1, gauges_all)
 
-    call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
-        catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+    write(fn_log,*) 'Pre-processing ', size(gauges_all, 1), ' gauges'
 
-    !  Step 2.  Cut out DEM, slope, topographic index and accumulated area for the specified catchment and write out the masked variables to file
+    ! STEP 2 - subset all the necessary data - can be switched off if you have already done this
 
-    !  This takes around 8mins to process so included an option not to wite this out if you just want to re-run the functional units
     if (writecatchfiles.eqv..true.) then
 
-        PRINT *, 'Subsetting DEM, slope, accumulated area and topographic index files'
+        ! Subset the DEM, slope, rivers, accumulated area and topographic index and catch mask
+        ! Subset the flow routing files
 
         ! DEM
-        uk_fn = trim(demfile)//'.asc'
-        catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_dem.asc'
-        call subset_catch(uk_fn, catch_mask, catch_ncols, catch_nrows, &
-            catch_xllcorner, catch_yllcorner, catch_nodata, catch_data)
-        call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
-            catch_cellsize, nodata_w, 3)
+        PRINT *, 'Subsetting DEMs'
+        write(fn_log,*) 'Subsetting DEMS for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = trim(root_fn)//'.asc'
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
+
+        do i = 1, size(gauges_all, 1)
+
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
+
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
+
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_dem.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 3)
+
+            deallocate(catch_mask, catch_data)
+
+        end do
+
+        deallocate(dta_data)
+
+        ! Rivers
+        PRINT *, 'Subsetting Rivers'
+
+        write(fn_log,*) 'Subsetting Rivers for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = trim(root_fn)//'_riv_id_check.asc'
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
+
+        do i = 1, size(gauges_all, 1)
+
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
+
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
+
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_riv.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 4)
+
+                deallocate(catch_mask, catch_data)
+
+        end do
+
+        deallocate(dta_data)
+
+        ! Gauge mask and routing files
+        PRINT *, 'Subsetting Gauge Mask and Routing Files'
+        write(fn_log,*) 'Subsetting Gauge Mask and Routing Files for ', size(gauges_all, 1), ' gauges'
+
+        dta_data_fn = trim(root_fn)//'_mask.asc'
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
+
+
+        temp_fn = trim(root_fn)//'_flow_conn.txt'
+        call read_numeric_list(temp_fn, 10, 1, flow_conn)
+
+        ! Read in the river data file (need distance)
+        temp_fn = trim(root_fn)//'_river_data.txt'
+        call read_numeric_list(temp_fn, 6, 1, riv_point_data)
+
+        ! Read in the flow point data file
+        temp_fn = trim(root_fn)//'_flow_point.txt'
+        call read_numeric_list(temp_fn, 6, 1, flow_point)
+
+        do i = 1, size(gauges_all, 1)
+
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
+
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
+
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_mask.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 4)
+
+            call subset_route_files(catch_data, flow_conn, flow_point, riv_point_data, &
+                flow_conn_catch, flow_point_catch, riv_point_data_catch)
+
+            ! Write the flow connectivity file
+            flowconn_fn = trim(outputfolder)//'/'//trim(gauge)//'_flow_conn.dat'
+            rivdata_fn = trim(outputfolder)//'/'//trim(gauge)//'_riv_data.dat'
+            flowpoint_fn = trim(outputfolder)//'/'//trim(gauge)//'_flow_point.dat'
+
+            call write_routingfiles(flowconn_fn, flow_conn_catch, rivdata_fn, riv_point_data_catch, &
+                flowpoint_fn, flow_point_catch)
+
+            deallocate(catch_mask, catch_data)
+
+        end do
+
+        deallocate(dta_data)
+
+        ! Topographic Index - maske sure to use the one that DOES NOT accumulate downstream
+        PRINT *, 'Subsetting Topographic Index'
+        write(fn_log,*) 'Subsetting Topographic Index for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = trim(root_fn)//'_riv_mask_atb.asc'
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
+
+        do i = 1, size(gauges_all, 1)
+
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
+
+            catchmaskfile = trim(catchmaskfolder)//'/gauge_'//trim(gauge)//'.asc'
+
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_atb.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 4)
+
+            deallocate(catch_mask, catch_data)
+
+        end do
+
+        deallocate(dta_data)
 
         ! Slope
-        uk_fn = trim(demfile)//'_mfd_slope.asc'
-        catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_slope.asc'
-        call subset_catch(uk_fn, catch_mask, catch_ncols, catch_nrows, &
-            catch_xllcorner, catch_yllcorner, catch_nodata, catch_data)
-        call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
-            catch_cellsize, nodata_w, 5)
+        PRINT *, 'Subsetting Slope'
+        write(fn_log,*) 'Subsetting Slope for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = trim(root_fn)//'_riv_mask_mfd_slope.asc'
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
 
-        ! Topographic index
-        uk_fn = trim(demfile)//'_atb.asc'
-        catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_atb.asc'
-        call subset_catch(uk_fn, catch_mask, catch_ncols, catch_nrows, &
-            catch_xllcorner, catch_yllcorner, catch_nodata, catch_data)
-        call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
-            catch_cellsize, nodata_w, 4)
+        do i = 1, size(gauges_all, 1)
+
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
+
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
+
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_slope.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 6)
+
+            deallocate(catch_mask, catch_data)
+
+        end do
+
+        deallocate(dta_data)
 
         ! Accumulated area
-        uk_fn = trim(demfile)//'_area.asc'
-        catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_area.asc'
-        call subset_catch(uk_fn, catch_mask, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_nodata, catch_data)
-        call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
-            catch_cellsize, nodata_w, 3)
+        PRINT *, 'Subsetting Accumulated Area'
+        write(fn_log,*) 'Subsetting Accumulated Area for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = trim(root_fn)//'_riv_mask_area.asc'
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
 
-            PRINT *, 'Created catchment dem, accumulated area, slope, topographic index ascii grids'
+        do i = 1, size(gauges_all, 1)
+
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
+
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
+
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_area.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 3)
+
+            deallocate(catch_mask, catch_data)
+
+        end do
+
+        deallocate(dta_data)
 
     end if
 
-    ! Step 3.  Create functional units file
-    !  Options currently to read in rainfall data and catchment data (need to add geology, soils, etc.)
-    !  Writes out table that lists each functional unit, UK_Rainfall_ID, Catchment Rainfall_ID, Catchment ID
+    ! Next look at HRU Classifiers file what else needs to be subsetted to classify your HRUs
 
-    PRINT *, 'Getting rain grid, catchment IDs and river data'
-    PRINT *, 'Creating functional units'
+    ! Rainfall
+    if (len_trim(hru_class(4)%filename).gt.0) then
 
-    ! Get rain data
-    uk_fn = trim(raingridfile)//'.asc'
-    call subset_catch(uk_fn, catch_mask, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_nodata, rain_grid)
+        PRINT *, 'Subsetting Rainfall Grid'
+        write(fn_log,*) 'Subsetting Rainfall Grid for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = hru_class(4)%filename
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
 
-    ! Get Catchment mask data
-    uk_fn = trim(demfile)//'_mask.asc'
-    call subset_catch(uk_fn, catch_mask, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_nodata, catch_data)
+        do i = 1, size(gauges_all, 1)
 
-    ! Get rivers data - Add the rivers to table_fu, reclassify the rivers so they go from 1 -> n
-    uk_fn = trim(demfile)//'_riv_500m_100m_riv_id_check.asc'
-    call subset_catch(uk_fn, catch_mask, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_nodata, river_data)
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
 
-    ! Create functional units table and grid and write out to file
-    call create_funcunits(rain_grid, catch_data, river_data, fu_table, fu_grid, rain_grid_dta, catch_data_dta, &
-        river_data_dta, gauges)
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
 
-    ! Write out all the results to file
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
 
-    catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_raingrid.asc'
-    call write_ascii_grid_int(catch_fn, rain_grid_dta, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
-        catch_cellsize, 0)
-    catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_catch.asc'
-    call write_ascii_grid_int(catch_fn, catch_data_dta, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
-        catch_cellsize, 0)
-    catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_funcunits.asc'
-    call write_ascii_grid_int(catch_fn, fu_grid, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
-        catch_cellsize, 0)
-    catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_riv.asc'
-    call write_ascii_grid_int(catch_fn, river_data_dta, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
-        catch_cellsize, 0)
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
 
-    catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_funcunit_table.txt'
-    open(99, file = catch_fn, status = 'unknown')
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//trim(hru_class(4)%fn_end)//'.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 4)
 
-    write (99, '(19A)') 'Funcunit_ID', tab, &
-        'Catch_ID', tab, &
-        'Catch_Num', tab, &
-        'Rain_ID', tab, &
-        'Rain_Num', tab, &
-        'River_ID', tab, &
-        'River_Num'
+            deallocate(catch_mask, catch_data)
 
-    do i = 1, size(fu_table, 1)
-        write (99, 71) fu_table(i, :)
-    end do
+        end do
 
-71  FORMAT(i0, 1x, i0, 1x, i0, 1x, i0, 1x, i0, 1x, i0, 1x, i0)
+        deallocate(dta_data)
 
-    PRINT *, 'Created functional units file'
+    end if
 
-    !  Step 4.  Create the initialisation file
-    ! Specifies all the gauges, their downstream gauges and the area of each gauge
+    ! PET
+    if (len_trim(hru_class(5)%filename).gt.0) then
 
-    ! Read in the flow connectivity file and catchment areas - this needs to be changed but at the moment we are
-    ! not using the initialisation file...
-    temp_fn = '/projects/The_Env_Virtual_observatory/DynaTOP_data/MERGED_rivers_uk_50m/catch3/station_river_gauge.txt'
-    call read_numeric_list(temp_fn, 5, 1, catch_area)
+        PRINT *, 'Subsetting PET Grid'
+        write(fn_log,*) 'Subsetting PET Grid for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = hru_class(5)%filename
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
 
-    temp_fn = trim(demfile)//'_flow_conn.txt'
-    call read_numeric_list(temp_fn, 10, 1, flow_conn)
+        do i = 1, size(gauges_all, 1)
 
-    call create_init_file(gauges, gauge, flow_conn, catch_area, outputfolder)
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
 
-    ! Read in the river data file (need distance and slope)
-    temp_fn = trim(demfile)//'_river_data.txt'
-    call read_numeric_list(temp_fn, 6, 1, riv_point_data)
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
 
-    ! Read in the flow point data file
-    temp_fn = trim(demfile)//'_flow_point.txt'
-    call read_numeric_list(temp_fn, 6, 1, flow_point)
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
 
-    call create_flowroute_files(gauges, river_data, flow_conn, flow_point, riv_point_data, &
-        flow_conn_catch, flow_point_catch, riv_point_data_catch)
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
 
-    ! Write the flow connectivity file
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//trim(hru_class(5)%fn_end)//'.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 4)
 
-    catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_flow_conn.dat'
+            deallocate(catch_mask, catch_data)
 
-    open(100, file = catch_fn, status = 'unknown')
+        end do
 
-    write (100, '(19A)') 'Node_ID', tab, &
-        'x_easting', tab, &
-        'y_northing', tab, &
-        'Type', tab, &
-        'ID_down', tab, &
-        'x_easting2', tab, &
-        'y_northing2', tab, &
-        'delta_dist', tab, &
-        'delta_h', tab, &
-        'slope'
+        deallocate(dta_data)
 
-    do i = 1 , size(flow_conn_catch, 1)
-        write(100, '(I0,A,F0.1,A,F0.1,A,I0,A,I0,A,F0.1,A,F0.1,A,F0.3,A,F0.3,A,F0.3)') &
-            int(flow_conn_catch(i, 1)), tab, &
-            flow_conn_catch(i, 2), tab, &
-            flow_conn_catch(i, 3), tab, &
-            int(flow_conn_catch(i, 4)), tab, &
-            int(flow_conn_catch(i, 5)), tab, &
-            flow_conn_catch(i, 6), tab, &
-            flow_conn_catch(i, 7), tab, &
-            flow_conn_catch(i, 8), tab, &
-            flow_conn_catch(i, 9), tab, &
-            flow_conn_catch(i, 10)
-    end do
+    end if
 
-    close (100)
+    ! Model Structure
+    if (len_trim(hru_class(6)%filename).gt.0) then
 
-    ! Write the river data file
-    catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_riv_data.dat'
+        PRINT *, 'Subsetting Model Structure'
+        write(fn_log,*) 'Subsetting Model Structure Grid for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = hru_class(6)%filename
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
 
-    col_headers(1) = 'riv_id'
-    col_headers(2) = 'area'
-    col_headers(3) = 'dist'
-    col_headers(4) = 'secion_dist'
-    col_headers(5) = 'slope'
-    col_headers(6) = 'elevation'
+        do i = 1, size(gauges_all, 1)
 
-    call write_numeric_list(catch_fn, col_headers, riv_point_data_catch, 3)
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
 
-    catch_fn = trim(outputfolder)//'/'//trim(gauge)//'_flow_point.dat'
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
 
-    open(100, file = catch_fn, status = 'unknown')
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
 
-    write (100, '(19A)') 'Node_ID', tab, &
-        'x_easting', tab, &
-        'y_northing', tab, &
-        'Type', tab, &
-        'dist', tab, &
-        'h_elevation'
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
 
-    do i = 1 , size(flow_point_catch, 1)
-        write(100, '(I0,A,F0.1,A,F0.1,A,I0,A,F0.3,A,F0.3)') &
-            int(flow_point_catch(i, 1)), tab, &
-            flow_point_catch(i, 2), tab, &
-            flow_point_catch(i, 3), tab, &
-            int(flow_point_catch(i, 4)), tab, &
-            flow_point_catch(i, 5), tab, &
-            flow_point_catch(i, 6)
-    end do
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//trim(hru_class(6)%fn_end)//'.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 4)
 
-    close (100)
+            deallocate(catch_mask, catch_data)
+
+        end do
+
+        deallocate(dta_data)
+
+    end if
+
+    ! Parameters
+    if (len_trim(hru_class(7)%filename).gt.0) then
+
+        PRINT *, 'Subsetting Parameter Grid'
+        write(fn_log,*) 'Subsetting Parameter Grid for ', size(gauges_all, 1), ' gauges'
+        dta_data_fn = hru_class(7)%filename
+        call read_ascii_grid(dta_data_fn, dta_data, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
+
+        do i = 1, size(gauges_all, 1)
+
+            write(gauge, *) int(gauges_all(i,1))
+            gauge = adjustl(gauge)
+
+            catchmaskfile = trim(catchmaskfolder)//'gauge_'//trim(gauge)//'.asc'
+
+            ! Read in the catchment mask
+            call read_ascii_grid(catchmaskfile, catch_mask, catch_ncols, catch_nrows, &
+                catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            call subset_catch(dta_data, catch_mask, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, &
+                catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, catch_cellsize, catch_nodata)
+
+            catch_fn = trim(outputfolder)//'/'//trim(gauge)//trim(hru_class(7)%fn_end)//'.asc'
+            call write_ascii_grid(catch_fn, catch_data, catch_ncols, catch_nrows, catch_xllcorner, catch_yllcorner, &
+                catch_cellsize, real(-9999, 8), 4)
+
+            deallocate(catch_mask, catch_data)
+
+        end do
+
+        deallocate(dta_data)
+
+    end if
+
+    print *, '--- Finished preprocess ---'
+    write(fn_log,*) ''
+    write(fn_log,*) 'Successfully finished preprocess.f90'
+    close(fn_log)
 
 end program preprocess

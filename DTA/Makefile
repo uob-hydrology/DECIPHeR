@@ -25,6 +25,7 @@ ROUTE_RIVER_FILE_OBJS = route_river_file.o dta_routing_file.o dta_rivers.o dta_q
 ROUTE_PROC_STD_OBJS = route_run_standalone.o dta_route_processing.o dta_utility.o dta_riv_tree_node.o
 MASK_CHECK_OBJS = mask_check.o dta_utility.o
 PREPROCESS_OBJS = preprocess.o dta_utility.o dta_preprocess.o
+CALC_HRUS_OBJS = calculate_hrus.o dta_utility.o dta_calculate_hrus.o dta_qsort.o dta_preprocess.o
 
 .SUFFIXES: 
 .SUFFIXES: .f90 .o
@@ -40,7 +41,8 @@ RELEASE_TARGETS = river_thresholds.e river_find_hw.e river_run.e \
 			      atb_wfp.e \
 			      route_river_file.e \
 			      route_run_standalone.e \
-                  preprocess.e
+                  preprocess.e \
+                  calculate_hrus.e
 			      
 DEBUG_TARGETS = $(RELEASE_TARGETS:%.e=%.d)
 
@@ -131,28 +133,12 @@ catch_mask.d: $(CATCH_MASK_OBJS:%.o=debug/%.o)
 mask_check.d: $(MASK_CHECK_OBJS:%.o=debug/%.o)
 	$(FC) -o $@ $(FFLAGS) $(LDFLAGS) $(MASK_CHECK_OBJS:%.o=debug/%.o) $(LIBS)
 
-# previous code written by Jim Freer
-atbdyna_2d.d: debug/atbdyna_2d.o
-	$(FC) -o $@ $(FFLAGS) $(LDFLAGS) debug/atbdyna_2d.o $(LIBS)
-
-river.d: debug/river.o
-	$(FC) -o $@ $(FFLAGS) $(LDFLAGS) debug/river.o $(LIBS)
-
-sinkfind.d: debug/sinkfind.o
-	$(FC) -o $@ $(FFLAGS) $(LDFLAGS) debug/sinkfind.o $(LIBS)
-
-subdiv.d: debug/subdiv.o
-	$(FC) -o $@ $(FFLAGS) $(LDFLAGS) debug/subdiv.o $(LIBS)
-
-
-
 ##   RELEASE
 preprocess.e: $(PREPROCESS_OBJS:%.o=release/%.o)
 	$(FC) -o $@ $(FFLAGS_RELEASE) $(LDFLAGS) $(PREPROCESS_OBJS:%.o=release/%.o) $(LIBS)
 
 calculate_hrus.e: $(CALC_HRUS_OBJS:%.o=release/%.o)
 	$(FC) -o $@ $(FFLAGS_RELEASE) $(LDFLAGS) $(CALC_HRUS_OBJS:%.o=release/%.o) $(LIBS)
-
 
 route_run_standalone.e: $(ROUTE_PROC_STD_OBJS:%.o=release/%.o)
 	$(FC) -o $@ $(FFLAGS_RELEASE) $(LDFLAGS) $(ROUTE_PROC_STD_OBJS:%.o=release/%.o) $(LIBS)
@@ -186,18 +172,5 @@ catch_mask.e: $(CATCH_MASK_OBJS:%.o=release/%.o)
 
 mask_check.e: $(MASK_CHECK_OBJS:%.o=release/%.o)
 	$(FC) -o $@ $(FFLAGS_RELEASE) $(LDFLAGS) $(MASK_CHECK_OBJS:%.o=release/%.o) $(LIBS)
-
-# previous code written by Jim Freer
-atbdyna_2d.e: release/atbdyna_2d.o
-	$(FC) -o $@ $(FFLAGS_RELEASE) $(LDFLAGS) release/atbdyna_2d.o $(LIBS)
-
-river.e: release/river.o
-	$(FC) -o $@ $(FFLAGS_RELEASE) $(LDFLAGS) release/river.o $(LIBS)
-
-sinkfind.e: release/sinkfind.o
-	$(FC) -o $@ $(FFLAGS) $(LDFLAGS) release/sinkfind.o $(LIBS)
-
-subdiv.e: release/subdiv.o
-	$(FC) -o $@ $(FFLAGS_RELEASE) $(LDFLAGS) release/subdiv.o $(LIBS)
 
 include .depend

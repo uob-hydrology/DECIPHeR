@@ -1,5 +1,3 @@
-!% Toby Dunne
-!% Apr 2016
 module dta_routing_file
 contains
 
@@ -70,7 +68,7 @@ contains
             call river_point_stacks(i)%to_array(river_point_lists(i)%list)
             call river_point_stacks(i)%free()
         enddo
-        print *, 'total_river_cells', total_river_cells
+        !print *, 'total_river_cells', total_river_cells
 
 
 
@@ -80,7 +78,7 @@ contains
 
     subroutine routing_file_grids_to_list(nrows, ncols, node_list, &
         river_point_lists, total_river_cells, &
-        riv_dist_grid, area_grid, &
+        riv_dist_grid, area_grid, dem_grid, &
         river_data)
         use dta_utility
         use dta_riv_tree_node
@@ -93,7 +91,7 @@ contains
         type(riv_tree_node) :: node_list(:)
         type(point_list_type), allocatable, dimension(:) :: river_point_lists
         double precision :: riv_dist_grid(nrows,ncols)
-        double precision :: area_grid(nrows,ncols)
+        double precision :: area_grid(nrows,ncols), dem_grid(nrows, ncols)
         !% riv_id, area, dist, section_dist, slope, height
         double precision, allocatable, dimension(:,:) :: river_data
 
@@ -109,9 +107,6 @@ contains
         double precision, allocatable, dimension(:) :: river_col_tmp
 
         double precision :: min_dist
-
-
-
 
         ! total number of river cells
         !total_river_cells = count(riv_dist_grid > 0.001)
@@ -162,6 +157,14 @@ contains
             end do
 
             river_data(river_data_start:river_data_end,2) = river_col_tmp
+
+            ! read the elevations of each river cell from grid
+            do j = 1, riv_cell_count
+                point = river_point_lists(i)%list(j)
+                river_col_tmp(j) = dem_grid(point%y, point%x)
+            end do
+
+            river_data(river_data_start:river_data_end,5) = river_col_tmp
 
             deallocate(river_col_tmp)
 

@@ -17,7 +17,7 @@ program catch_cut
     use dta_riv_tree_node
     implicit none
 
-    integer, parameter :: max_candidate = 150
+    integer, parameter :: max_candidate = 1000
 
     character(1024) in_dem_file
 
@@ -44,7 +44,7 @@ program catch_cut
     double precision, allocatable, dimension(:,:) :: dem_grid
 
     integer(1), allocatable :: flow_dir_grid (:,:)
-    integer, allocatable :: flow_dir_grid_int (:,:)
+    !integer, allocatable :: flow_dir_grid_int (:,:)
     double precision, allocatable :: slope_grid (:,:)
 
     integer catchment_id
@@ -79,7 +79,7 @@ program catch_cut
     double precision candidate_min_score
     double precision candidate_score_threshold
 
-    double precision candidate_result_score(max_candidate)
+    double precision candidate_result_score(max_candidate,2)
 
     integer candidate_best
     logical is_complete
@@ -102,7 +102,7 @@ program catch_cut
     double precision :: calc_area_m2
     double precision :: calc_area_km2
     double precision :: outlet_x_east, outlet_y_north
-    double precision :: score
+    double precision :: score, scorearea
 
     integer :: intersect_count, out_count
     logical :: input_is_valid
@@ -114,7 +114,6 @@ program catch_cut
 
     candidate_score_threshold = 10
     initial_radiusM = 500
-    max_radiusM = 4000
 
     in_dem_file = ''
     in_river_file = ''
@@ -126,7 +125,20 @@ program catch_cut
     input_is_valid = .true.
 
     i = 0
-    print *, '--- catch_find ---'
+
+    tmp_char = 'DTA_catch_find.log'
+    open(999, file = tmp_char, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(999,*) '--- catch_find.f90 ---'
+    write(999,*) ''
+    print *, '--- Starting catch_find ---'
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -142,6 +154,9 @@ program catch_cut
             CALL get_command_argument(i+1, in_point_file)
         elseif (are_equal(arg, '-ref_catch')) then
             CALL get_command_argument(i+1, ref_catch_dir)
+        elseif (are_equal(arg, '-init_searchradius')) then
+            CALL get_command_argument(i+1, arg)
+            read (arg,*) initial_radiusM
         endif
         i = i + 1
     enddo
@@ -170,7 +185,8 @@ program catch_cut
         print *, '           <dir> containing asc files names catchment_id.asc'
         print *, '-river <file.asc>   select river ascii grid file'
         print *, '       searches marked river cells, matches the best by area or reference'
-        print *, ''
+        print *, '-init_searchradius [optional] initial search radius (m) to search for candidate'
+        print *, '                    river cells'
         print *, ''
         print *, 'Input data description'
         print *, 'dem: sink filled dem (ascii grid)'
@@ -195,6 +211,8 @@ program catch_cut
         endif
     endif
 
+    ! Maximum search distance is four times the initial search distance
+    max_radiusM = initial_radiusM*4
 
     ! input file is in format
     ! tab separated, 4 columns
@@ -205,71 +223,39 @@ program catch_cut
     point_data_col_y = 3
     point_data_col_ref_area = 4
 
+    write(999,*) 'Command Options Read In'
+    write(999,*) 'dem: ', trim(in_dem_file)
+    write(999,*) 'station list: ', trim(in_point_file)
+    write(999,*) 'river file:   ', trim(in_river_file)
+    write(999,*) 'ref catch masks:   ', trim(ref_catch_dir)
+    write(999,*) ''
+
     print *, 'read station list: ', trim(in_point_file)
+    write(999,*) 'read station list: ', trim(in_point_file)
     call read_numeric_list(in_point_file, 4, 1, point_data)
-    print *, 'stations: ', size(point_data,1)
+    write(999,*) 'Number of stations to process: ', size(point_data,1)
 
     print *, 'read dem grid:', trim(in_dem_file)
+    write(999,*) 'read dem grid:', trim(in_dem_file)
     CALL timer_get(start_time)
     call read_ascii_grid(in_dem_file, dem_grid, &
         ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read dem grid', start_time, end_time)
+    !call timer_print('read dem grid', start_time, end_time)
 
     allocate (flow_dir_grid(nrows,ncols))
     allocate (slope_grid(nrows,ncols))
 
-    print *, 'calc_flow_direction'
+    print *, 'calculating flow direction'
+    write(999,*) 'calculating flow direction'
     CALL timer_get(start_time)
     call calc_flow_direction(nrows, ncols, dem_grid, cellsize, flow_dir_grid, slope_grid)
     CALL timer_get(end_time)
-    call timer_print('calc_flow_direction', start_time, end_time)
+    !call timer_print('calc_flow_direction', start_time, end_time)
 
-    ! no longer need dem
+    ! no longer need dem and slope
     deallocate(dem_grid)
-
-    tmp_char = in_dem_file(1:len_trim(in_dem_file)-4)//'_sfd_slope.asc'
-
-    print *, 'write: ', trim(tmp_char)
-    call write_ascii_grid(tmp_char, slope_grid, &
-        ncols, nrows, &
-        xllcorner, yllcorner, cellsize, -9999.0d0, 5)
-
     deallocate(slope_grid)
-
-    tmp_char = in_dem_file(1:len_trim(in_dem_file)-4)//'_sfd.asc'
-
-    allocate(flow_dir_grid_int(nrows,ncols))
-
-    flow_dir_grid_int = flow_dir_grid
-    ! 127 is max in a fortran byte
-    ! change to 128 to match arcgis direction value
-    where(flow_dir_grid == 127) flow_dir_grid_int = 128
-
-    print *, 'write: ', trim(tmp_char)
-    call write_ascii_grid_int(tmp_char, flow_dir_grid_int, &
-        ncols, nrows, &
-        xllcorner, yllcorner, cellsize, 0)
-
-    tmp_char = in_dem_file(1:len_trim(in_dem_file)-4)//'_sfd_dir_deg.asc'
-
-    !   conversion to degrees - for arrow visualisation in arcgis
-    !   flow_dir_grid_int(:,:) = -9999
-    !   where(flow_dir_grid == 1) flow_dir_grid_int = 90
-    !   where(flow_dir_grid == 2) flow_dir_grid_int = 135
-    !   where(flow_dir_grid == 4) flow_dir_grid_int = 180
-    !   where(flow_dir_grid == 8) flow_dir_grid_int = 225
-    !   where(flow_dir_grid == 16) flow_dir_grid_int = 270
-    !   where(flow_dir_grid == 32) flow_dir_grid_int = 315
-    !   where(flow_dir_grid == 64) flow_dir_grid_int = 0
-    !   where(flow_dir_grid == 127) flow_dir_grid_int = 45
-    !
-    !    print *, 'write:', trim(tmp_char)
-    !    call write_ascii_grid_int(tmp_char, flow_dir_grid_int, &
-    !        ncols, nrows, &
-    !        xllcorner, yllcorner, cellsize, 0)
-
-    deallocate(flow_dir_grid_int)
 
     ! array to write the catchment mask (flow lengths)
     allocate (mask_grid(nrows,ncols))
@@ -277,11 +263,13 @@ program catch_cut
     mask_grid(:,:) = .false.
 
     print *, 'read river grid: ', trim(in_river_file)
+    write(999,*) 'read river grid: ', trim(in_river_file)
+
     CALL timer_get(start_time)
     call read_ascii_grid(in_river_file, riv_grid, &
         riv_ncols, riv_nrows, riv_xllcorner, riv_yllcorner, riv_cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read river grid', start_time, end_time)
+    !call timer_print('read river grid', start_time, end_time)
 
     allocate(riv_mask_grid(nrows,ncols))
     riv_mask_grid(:,:) = .false.
@@ -290,17 +278,15 @@ program catch_cut
     deallocate(riv_grid)
 
     result_file = in_dem_file(1:len_trim(in_dem_file)-4)//'_station_match.txt'
-    print *, 'results file: ', trim(result_file)
-
     candidate_file= in_dem_file(1:len_trim(in_dem_file)-4)//'_station_candidate.txt'
-    print *, 'candidate file: ', trim(result_file)
 
     ! result file
     ! this file contains all the catchment outlet points on the river cells
     if(file_exists(result_file)) then
         ! read existing file to see which points have already finished
         call read_numeric_list(result_file, 8, 1, point_list_resume)
-        print*,'open existing', size(point_list_resume,1)
+        print *, 'opening existing station_match file'
+        write(999,*) 'opening existing station_match file'
         open(100, file = result_file, status="old", position="append", action="write", iostat=ioerr)
         if(ioerr/=0) then
             print*,'error opening output file: ', trim(result_file)
@@ -323,7 +309,7 @@ program catch_cut
             'y_northing', tab,&
             'Type', tab,&
             'ref_area_km2', tab, &
-            'calc_area_m2', tab, &
+            'calc_area_km2', tab, &
             'score', tab, &
             'dist', tab, &
             'out_of_bound',tab, &
@@ -332,6 +318,8 @@ program catch_cut
 
     ! candidate_file file
     if(file_exists(candidate_file)) then
+        print *, 'opening existing station_candidate file'
+        write(999,*)'opening existing station_candidate file'
         open(101, file = candidate_file, status="old", position="append", action="write", iostat=ioerr)
         if(ioerr/=0) then
             print*,'error opening output file: ', trim(candidate_file)
@@ -354,32 +342,23 @@ program catch_cut
             'y_northing', tab,&
             'Type', tab,&
             'ref_area_km2', tab, &
-            'calc_area_m2', tab, &
+            'calc_area_km2', tab, &
             'score', tab, &
             'dist', tab, &
-            'out_of_bound',tab, &
-            'reason'
+            'out_of_bound'
     end if
-    ! write header to terminal
-    !write (*, 97) 'catchment', tab, &
-    !    'x_easting', tab, &
-    !    'y_northing', tab, &
-    !    'Type', tab,&
-    !    'ref_area_km2', tab, &
-    !    'calc_area_m2', tab, &
-    !    'score', tab, &
-    !    'dist', tab, &
-    !    'out_of_bound', tab, &
-    !    'reason'
-
 
     ! format labels are a bit cryptic
     ! 97 is 19 strings (9 headers and 8 tabs)
     ! 98 is 1 int, 2 (tab floats), int, tab, 4 (tab floats) tab, int, tab, string
 97  format ( 19A )
-98  format ( I0,2(A,F0.1),A,I0,4(A,F0.1),A,I0,A,A )
+98  format ( I0,2(A,F0.1),A,I0,4(A,F0.1),A,I0)
+99  format ( I0,2(A,F0.1),A,I0,4(A,F0.1),A,I0,A,A)
     task_count = 0
     allocate(gauge_points(size(point_data,1)))
+
+    write(999,*) ''
+
     do i=1,size(point_data,1)
         gauge_points(i)%x = -1
         gauge_points(i)%y = -1
@@ -393,7 +372,7 @@ program catch_cut
                 endif
             end do
             if(is_complete) then
-                print *, 'already processed', catchment_id
+                write(999,*) 'already processed', catchment_id
                 cycle
             endif
         endif
@@ -411,17 +390,19 @@ program catch_cut
         endif
     end do
 
-    print*,'stations to process:', task_count
+    print *,'Processing ', task_count, ' stations'
 
     CALL timer_get(start_time)
     last_print_time = start_time
     task_progress = 0
     do i=1,size(point_data,1)
+
         catchment_id = nint(point_data(i, point_data_col_id))
         is_complete = .false.
 
         ! check if point disabled
         if( gauge_points(i)%x <0) then
+            write(999,*) 'catchment id ', catchment_id, 'does not lie within the DEM'
             cycle
         endif
         task_progress = task_progress + 1
@@ -429,8 +410,6 @@ program catch_cut
         startx = gauge_points(i)%x
 
         ref_area_km2 = point_data(i, point_data_col_ref_area)
-
-        print *, catchment_id
 
         !% 1 = 1, 2 = x, 3 = y, 4 = processed
         candidates(:,:) = 0
@@ -446,7 +425,7 @@ program catch_cut
         search_radius_cells = int(ceiling(initial_radiusM/cellsize))
 
         ! if reference catchment checking enabled, load the reference asc
-        if(len_trim(ref_catch_dir) > 0) then
+        if((len_trim(ref_catch_dir) > 0).and.(ref_area_km2.gt.0)) then
             write(tmp_char,'(A,I0,A)') &
                 trim(ref_catch_dir), &
                 catchment_id, '.asc'
@@ -521,16 +500,25 @@ program catch_cut
                         cellsize, &
                         score, intersect_count, out_count)
 
-                    candidate_result_score(j) = score
+                    candidate_result_score(j,1) = score*100
 
                     !print *, 'x', x, 'y', y, 'area(ref:calc)', ref_area_km2, &
                     !    calc_area_km2, &
                     !    'score', score * 100
 
+                else if (ref_area_km2<=0) then
+
+                    ! If no reference catchment area/mask is chosen score is set to distance and point &
+                    ! chosen based on distance
+
+                    score = sqrt(real((starty-y)*(starty-y)+(startx-x)*(startx-x)))
+                    candidate_result_score(j,1) = score
+                    candidate_result_score(j,2) = calc_area_km2
+
                 else
                     ! score based on best area match
-                    score = abs(ref_area_km2 - calc_area_km2) / ref_area_km2
-                    candidate_result_score(j) = score
+                    score = (abs(ref_area_km2 - calc_area_km2) / ref_area_km2)*100
+                    candidate_result_score(j,1) = score
 
                     !print *, 'x', x, 'y', y, 'area(ref:calc)', ref_area_km2, &
                     !    calc_area_km2, &
@@ -555,44 +543,59 @@ program catch_cut
                 best_dist = sqrt(real((starty-y)*(starty-y)+(startx-x)*(startx-x)))
                 best_candidate_out_of_bounds = candidates_out_of_bounds(j)
 
-                if (allocated(reference_mask_logical_grid)) then
-                    stop_reason = 'reference'
-                else
-                    stop_reason = 'area'
-                endif
-
                 write (101, 98) catchment_id, tab, &
                     outlet_x_east, tab, &
                     outlet_y_north, tab, &
                     2, tab, & !node type
                     ref_area_km2, tab, &
-                    calc_area_m2, tab,&
-                    score * 100, tab,&
+                    calc_area_km2, tab,&
+                    score, tab,&
                     best_dist * cellsize, tab,&
-                    best_candidate_out_of_bounds, tab,&
-                    trim(stop_reason)
+                    best_candidate_out_of_bounds
 
             enddo
 
             ! find the processed catchment with the best score
             ! (either area or reference overlap)
             candidate_best = 0
-            !candidate_min_score = candidate_result_score(1)
-            do j=1,candidate_count
-                score = candidate_result_score(j)
-                if (candidate_best == 0 .or. score < candidate_min_score) then
-                    candidate_min_score = score
-                    candidate_best = j
-                endif
-            enddo
+            if (ref_area_km2<=0) then
+                ! Processed catchment with the best score will be min dist
+                ! If two points have the same min distance then it will pick the one&
+                ! with the largest accumulated area
+                do j=1,candidate_count
+                    score = candidate_result_score(j,1)
+                    scorearea = candidate_result_score(j,2)
+                    if (candidate_best == 0) then
+                        candidate_min_score = score
+                        candidate_best = j
+                    else if (score<=candidate_min_score) then
+                        candidate_min_score = score
+                        candidate_best = j
+                    else if ((score==candidate_min_score).and.(scorearea>candidate_result_score(candidate_best,2))) then
+                        candidate_min_score = score
+                        candidate_best = j
+                    end if
+                enddo
+            else
+                ! for reference or area match
+                do j=1,candidate_count
+                    score = candidate_result_score(j,1)
+                    if (candidate_best == 0 .or. score < candidate_min_score) then
+                        candidate_min_score = score
+                        candidate_best = j
+                    endif
+                enddo
+            endif
 
-            ! if percentage error below threshhold
-            if(candidate_min_score * 100 <= candidate_score_threshold) then
+            ! if you have found a river cell
+            if(candidate_best>0) then
                 is_complete = .true.
                 if (allocated(reference_mask_logical_grid)) then
-                    stop_reason = 'reference: match'
+                    stop_reason = 'ref catch mask'
+                elseif (ref_area_km2<=0) then
+                    stop_reason = 'no ref mask/area'
                 else
-                    stop_reason = 'area: match'
+                    stop_reason = 'ref catch area'
                 endif
             else
                 if(candidate_count < max_candidate) then
@@ -603,21 +606,10 @@ program catch_cut
                     else
                         ! abort search nothing within max_radiusM
                         is_complete = .true.
-                        if (allocated(reference_mask_logical_grid)) then
-                            stop_reason = 'reference: max radius'
-                        else
-                            stop_reason = 'area: max radius'
-                        endif
-                        print *, 'radius excceded, radius    :', search_radius_cells * cellsize,'m score:', candidate_min_score*100
+                        stop_reason = 'no riv cells'
                     endif
                 else
                     is_complete = .true.
-                    if (allocated(reference_mask_logical_grid)) then
-                        stop_reason = 'reference: max candidates'
-                    else
-                        stop_reason = 'area: max candidates'
-                    endif
-                    print *, 'candidates excceded, radius:', search_radius_cells * cellsize,'m score:', candidate_min_score*100
                 endif
             endif
         enddo
@@ -632,12 +624,11 @@ program catch_cut
             x = candidates(candidate_best,2)
             y = candidates(candidate_best,3)
         else
-            print*,'no river cells within radius', max_radiusM, 'm'
+            write(999,*) 'candidate id ', catchment_id, 'no river cells within search radius', max_radiusM, 'm'
             write_catchment_mask = .false.
             x = 0
             y = 0
         endif
-
 
         calc_area_m2 = 0
         calc_area_km2 = 0
@@ -653,43 +644,44 @@ program catch_cut
 
             best_dist = sqrt(real((starty-y)*(starty-y)+(startx-x)*(startx-x))) * cellsize
 
-            candidate_min_score = candidate_result_score(candidate_best)
+            candidate_min_score = candidate_result_score(candidate_best,1)
             calc_area_m2 = candidates_area(candidate_best)
             best_candidate_out_of_bounds = candidates_out_of_bounds(candidate_best)
-            calc_area_km2 = calc_area_m2 / (1000*1000)       ! area km^2
+
+            if (best_candidate_out_of_bounds<1) then
+                                ! Only write out catchments where the catchment area lied within the dem
+                write(999,*) 'catchment id ', catchment_id, ' found a best candidate river cell'
+                calc_area_km2 = calc_area_m2 / (1000*1000)       ! area km^2
+
+                write (100, 99) catchment_id, tab, &
+                    outlet_x_east, tab, &
+                    outlet_y_north, tab, &
+                    2, tab, & !node type
+                    ref_area_km2, tab, &
+                    calc_area_km2, tab,&
+                    candidate_min_score, tab,&
+                    best_dist, tab,&
+                    best_candidate_out_of_bounds, tab,&
+                    trim(stop_reason)
+
+            else
+
+                write(999,*) 'catchment id ', catchment_id, ' catchment mask out of bounds of dem'
+
+            end if
+
         endif
-
-        CALL timer_get(end_time)
-        call timer_estimate(task_progress, task_count, start_time, end_time, last_print_time)
-
-        !write (*, 98) catchment_id, tab, &
-        !    outlet_x_east, tab, &
-        !    outlet_y_north, tab, &
-        !    2, tab, & !node type
-        !    ref_area_km2, tab, &
-        !    calc_area_m2, tab,&
-        !    candidate_min_score * 100, tab,&
-        !    best_dist * cellsize, tab,&
-        !    best_candidate_out_of_bounds, tab,&
-        !    trim(stop_reason)
-
-        write (100, 98) catchment_id, tab, &
-            outlet_x_east, tab, &
-            outlet_y_north, tab, &
-            2, tab, & !node type
-            ref_area_km2, tab, &
-            calc_area_m2, tab,&
-            candidate_min_score * 100, tab,&
-            best_dist, tab,&
-            best_candidate_out_of_bounds, tab,&
-            trim(stop_reason)
 
         flush (100)
     enddo
     close (100)
 
     CALL timer_get(end_time)
-    call timer_print('catch_cut', run_start_time, end_time)
+    !call timer_print('catch_cut', run_start_time, end_time)
+    write(999,*) ''
+    write(999,*) 'Successfully finished catch_find.f90'
+    print *, '--- Finished catch_find ---'
+    close(999)
 
     stop
 

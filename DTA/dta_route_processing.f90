@@ -79,12 +79,7 @@ contains
             0, 0.0d0, 0.0d0, 0.0d0, &
             flow_conn_file, flow_point_file)
 
-
-
-        print *, 'read river data:', trim(river_data_file)
         call read_numeric_list(river_data_file, 6, 1, riv%river_data)
-        print *, 'river cell count: ', size(riv%river_data,1)
-
 
         ! only write output for node_type=gauge
         ! count the gauge points
@@ -140,15 +135,12 @@ contains
 
         riv%is_enabled = .true.
 
-        print *, 'reading flow tree'
-
         call riv_tree_read_dyna(riv%node_list, &
             0, 0.0d0, 0.0d0, 0.0d0)
 
         ! File ID is the same as file ID given in dyna_project.f90 GC 13/06
         !print *, 'read river data:', trim(river_data_file)
         call read_numeric_list_fid(502, 6, 1, riv%river_data)
-        print *, 'river cell count: ', size(riv%river_data,1)
 
         ! only write output for node_type=gauge
         ! count the gauge points
@@ -216,15 +208,15 @@ contains
         do i=1,size(riv%node_list)
             !% node type 1 is the outlet - start counting from outlets
             if(riv%node_list(i)%downstream_index == 0) then
-            !if(riv%node_list(i)%node_type == NODE_TYPE_SEA) then
+                !if(riv%node_list(i)%node_type == NODE_TYPE_SEA) then
                 call riv_node_river_delay(riv%node_list, i, 0.0d0, tdh%v_mode, tdh%v_param)
                 sea_count = sea_count + 1
             endif
         end do
 
         if(sea_count == 0) then
-           print *, 'Could not find any stream outlets'
-           stop
+            print *, 'Could not find any stream outlets'
+            stop
         endif
 
         !% this is the total maximum time to the furtherest upstream river point.
@@ -234,8 +226,6 @@ contains
         !% this will determine the warm-up time (the first time that any water can
         !% reach the outlet from the furtherest input point)
         river_point_max_delay = 1
-
-        print *, 'river cells: ', size(riv%river_data,2)
 
         do i=1,size(riv%node_list)
 
@@ -286,7 +276,7 @@ contains
                 max_elev = maxval(riv%river_data(riv_start_i:riv_end_i,5))
                 min_elev = minval(riv%river_data(riv_start_i:riv_end_i,5))
 
-                slope = max_elev - min_elev / max_dist
+                slope = (max_elev - min_elev) / max_dist
                 reach_delay = max_dist / (tdh%v_param(1) * slope)
             else
                 print *, 'unknown velocity mode'
@@ -299,8 +289,11 @@ contains
             !% full distance from furtherest river cell to the outlet
             full_delay = reach_delay + riv%node_list(i)%total_downstream_delay
 
-            tdh%node_hist_indexes(i,1) = floor(riv%node_list(i)%total_downstream_delay/tdh%timestep) + 1
-            tdh%node_hist_indexes(i,2) = ceiling(full_delay/tdh%timestep) + 1
+            !tdh%node_hist_indexes(i,1) = floor(riv%node_list(i)%total_downstream_delay/tdh%timestep) + 1
+            !tdh%node_hist_indexes(i,2) = ceiling(full_delay/tdh%timestep) + 1
+
+            tdh%node_hist_indexes(i,1) = floor(riv%node_list(i)%total_downstream_delay) + 1
+            tdh%node_hist_indexes(i,2) = ceiling(full_delay) + 1
 
             if(riv%node_list(i)%total_downstream_delay > river_point_max_delay) then
                 ! just recorded to see how many timesteps the flow will reach the bottom
@@ -309,12 +302,15 @@ contains
             if(full_delay > headwater_max_delay) then
                 headwater_max_delay = full_delay
             endif
+
         end do
-        total_timesteps = ceiling(headwater_max_delay / tdh%timestep) + 1
+
+        !total_timesteps = ceiling(headwater_max_delay / tdh%timestep) + 1
+        total_timesteps = ceiling(headwater_max_delay) + 1
         !warmup_timesteps = ceiling(river_point_max_delay / tdh%timestep) + 1
 
         !print *, 'warm-up timesteps = ', warmup_timesteps
-        print *, 'flow timesteps = ', total_timesteps
+        !print *, 'flow timesteps = ', total_timesteps
 
         if(allocated(tdh%route_hist_table)) then
             deallocate(tdh%route_hist_table)
@@ -325,8 +321,8 @@ contains
         allocate(tdh%route_hist_table(size(riv%node_list), total_timesteps))
         allocate(tdh%flow_matrix(size(riv%node_list), total_timesteps))
 
-        print*, 'point_count      =', size(tdh%route_hist_table,1) ! rows
-        print*, 'route_step_count =', size(tdh%route_hist_table,2) ! columns
+        !print*, 'point_count      =', size(tdh%route_hist_table,1) ! rows
+        !print*, 'route_step_count =', size(tdh%route_hist_table,2) ! columns
 
         tdh%route_hist_table(:,:) = 0
         tdh%flow_matrix(:,:) = 0
@@ -360,13 +356,13 @@ contains
             if(int(bin_width) == 0) then
                 bin_width = 1
             endif
-
             allocate(delay_hist(bin_count))
             delay_hist(:) = 0
 
             ! count accumulation at each distance
             ! this divides the distance into equal bins
             ! - works constant velocity and average slope options
+
             do j=riv_start_i,riv_end_i
                 ! column 4 is river section distance
                 dist_value = riv%river_data(j,4)
@@ -387,18 +383,18 @@ contains
             deallocate(delay_hist)
         end do
 
-!debugging print the time delay histogram
-!        print*, 'tdh -------------'
-!        !do i=1,size(riv%node_list)
-!        print*,( riv%node_list(i)%gauge_id, i=1,size(riv%node_list) )
-!
-!        print*,( riv%node_list(i)%total_downstream_delay, i=1,size(riv%node_list) )
-!        print*,''
-!        !end do
-!
-!        do i=1,size(tdh%route_hist_table,2)
-!        print*,tdh%route_hist_table(:,i)
-!        end do
+    !debugging print the time delay histogram
+    !        print*, 'tdh -------------'
+    !        !do i=1,size(riv%node_list)
+    !        print*,( riv%node_list(i)%gauge_id, i=1,size(riv%node_list) )
+    !
+    !        print*,( riv%node_list(i)%total_downstream_delay, i=1,size(riv%node_list) )
+    !        print*,''
+    !        !end do
+    !
+    !        do i=1,size(tdh%route_hist_table,2)
+    !        print*,tdh%route_hist_table(:,i)
+    !        end do
 
     ! Morpeth test
     !% add an additional row for the ungauged outlet
@@ -525,8 +521,17 @@ contains
         integer :: node_index
         integer :: sum_index
         integer :: upstream_index
+        integer :: full_route
+
+        ! Flag to enable full routing (i.e. accumulate all the river branches.
+        !  You will want this flag set to zero is you only want the routing per reach
+        ! i.e. LISFLOOD simulation - GC to code into dynaTOP.
+
+        full_route = 1
 
         if(size(step_flow_output)/=size(riv%flow_output_indexes)) then
+            print *, size(step_flow_output)
+            print *, size(riv%flow_output_indexes)
             print*,'route_process_run_step: error size mismatch'
             stop
         endif
@@ -562,22 +567,26 @@ contains
             q_sum = q_sum + q_value
 
             ! add flow for full river network - todo don't perform this step if reach only mode
+            if (full_route.eq.1) then
 
-            do j=1,riv%node_list(node_index)%upstream_tree_count
-                upstream_index = riv%node_list(node_index)%upstream_tree_indexes(j)
+                do j=1,riv%node_list(node_index)%upstream_tree_count
+                    upstream_index = riv%node_list(node_index)%upstream_tree_indexes(j)
 
-                !row flow_matrix row is a tributary, add it to the total
-                q_value = tdh%flow_matrix(upstream_index,sum_index)
-                q_sum = q_sum + q_value
-            end do
+                    !row flow_matrix row is a tributary, add it to the total
+                    q_value = tdh%flow_matrix(upstream_index,sum_index)
+                    q_sum = q_sum + q_value
+                end do
+
+            end if
+
             step_flow_output(i) = q_sum
         end do
 
-! debugging - print out each timestep
-!        print*, 'step -------------'
-!        do i=1,size(tdh%flow_matrix,2)
-!        print*,tdh%flow_matrix(:,i)
-!        end do
+        ! debugging - print out each timestep
+        !        print*, 'step -------------'
+        !        do i=1,size(tdh%flow_matrix,2)
+        !        print*,tdh%flow_matrix(:,i)
+        !        end do
 
         ! set the downstream flow to 0 (cshift wraps the first colum around)
         tdh%flow_matrix(:,1) = 0

@@ -52,8 +52,9 @@ program route_tree
     integer :: point_col_dist
     integer :: point_col_out_bound
 
-    integer i, j
+    integer i, j, ioerr
     integer point_count
+    integer :: fp
 
     integer :: ncols, nrows, riv_ncols, riv_nrows
     double precision :: xllcorner, yllcorner, cellsize, riv_xllcorner, riv_yllcorner, riv_cellsize
@@ -85,7 +86,7 @@ program route_tree
     !call utility_test()
     !stop
 
-    filter_score = 50
+    filter_score = 20
     filter_area = 1
     riv_reach_increment_m = 0
     ! default to half of riv_reach_increment_m
@@ -102,8 +103,22 @@ program route_tree
 
     input_is_valid = .true.
 
-    i = 0
-    print *, '--- route_tree ---'
+    tmp_char = 'DTA_route_tree.log'
+    fp=fp
+    open(fp, file = tmp_char, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(fp,*) '--- route_tree.f90 ---'
+    write(fp,*) ''
+    print *, '--- Starting route_tree ---'
+
+    i=0
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -153,28 +168,40 @@ program route_tree
         stop
     endif
 
+    write(fp,*) 'Command Options Read In'
+    write(fp,*) 'dem: ', trim(in_dem_file)
+    write(fp,*) 'river file: ', trim(in_riv_file)
+    write(fp,*) 'points on river:   ', trim(in_point_file)
+    write(fp,*) 'filter area:   ', filter_area
+    write(fp,*) 'filter score:  ', filter_score
+    write(fp,*) 'reach length:   ', riv_reach_increment_m
+    write(fp,*) ''
+
+    print *, 'dem ', trim(in_dem_file)
+    print *, 'river file ', trim(in_riv_file)
+    print *, 'points on river', trim(in_point_file)
     print *, 'filter score', filter_score
     print *, 'filter area', filter_area
     print *, 'reach length', riv_reach_increment_m
 
-    ! disabled custom naming based on reach length, this makes scripting simpler
-    !if(riv_reach_increment_m > 0.01d0)then
-    !    write (dem_output_prefix, '(A,A,I0)') in_dem_file(1:len_trim(in_dem_file)-4), '_rl',int(riv_reach_increment_m)
-    !    write (riv_output_prefix, '(A,A,I0)') in_riv_file(1:len_trim(in_riv_file)-4), '_rl',int(riv_reach_increment_m)
-    !else
-    ! output based on dem filename
-    dem_output_prefix = in_dem_file(1:len_trim(in_dem_file)-4)
-    ! output based on riv filename
-    riv_output_prefix = in_riv_file(1:len_trim(in_riv_file)-4)
-    !endif
+    if(riv_reach_increment_m > 0.01d0)then
+        write (dem_output_prefix, '(A,A,I0)') in_dem_file(1:len_trim(in_dem_file)-4), '_rl',int(riv_reach_increment_m)
+        write (riv_output_prefix, '(A,A,I0)') in_riv_file(1:len_trim(in_riv_file)-4), '_rl',int(riv_reach_increment_m)
+    else
+        ! output based on dem filename
+        dem_output_prefix = in_dem_file(1:len_trim(in_dem_file)-4)
+        ! output based on riv filename
+        riv_output_prefix = in_riv_file(1:len_trim(in_riv_file)-4)
+    endif
     riv_output_prefix2 = in_riv_file(1:len_trim(in_riv_file)-4)
 
     print *, 'read river grid:', trim(in_riv_file)
+    write(fp,*) 'read river grid:', trim(in_riv_file)
     CALL timer_get(start_time)
     call read_ascii_grid(in_riv_file, riv_grid, &
         riv_ncols, riv_nrows, riv_xllcorner, riv_yllcorner, riv_cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read river grid', start_time, end_time)
+    !call timer_print('read river grid', start_time, end_time)
 
     allocate(riv_mask_grid(riv_nrows, riv_ncols))
     riv_mask_grid(:,:) = .false.
@@ -193,6 +220,7 @@ program route_tree
     point_col_dist = 8
     point_col_out_bound = 9
     print *, 'read point list: ', trim(in_point_file)
+    write(fp,*) 'read point list: ', trim(in_point_file)
     call read_numeric_list(in_point_file, 8, 1, read_point_row_list)
 
     filter_stat_area = 0
@@ -217,32 +245,22 @@ program route_tree
             riv_nrows, riv_xllcorner, riv_yllcorner, riv_cellsize,&
             read_point_list(i)%y, read_point_list(i)%x)
 
-        if(read_point_list(i)%y < 1 &
-            .or. read_point_list(i)%y > riv_nrows &
-            .or. read_point_list(i)%x <1 &
-            .or. read_point_list(i)%x > riv_ncols ) then
-
-            read_point_row_enabled(i) = .false.
-            print*,'out of bounds', read_point_list(i)%x, read_point_list(i)%y, &
-            read_point_row_list(i, point_col_id),  riv_nrows, riv_ncols
-
-
-        elseif(nint(read_point_row_list(i, point_col_node_type)) /= 2) then
-            print*,'custom point: ', nint(read_point_row_list(i, point_col_id)), nint(read_point_row_list(i, point_col_node_type))
+        if(nint(read_point_row_list(i, point_col_node_type)) /= 2) then
+            write(fp,*) 'custom point: ', (read_point_row_list(i, point_col_id)), (read_point_row_list(i, point_col_node_type))
         else
             if(read_point_row_list(i, point_col_area) < 0.1) then
                 read_point_row_enabled(i) = .false.
                 filter_stat_na = filter_stat_na + 1
             elseif((filter_score > 0.001 .and. read_point_row_list(i, point_col_score) > filter_score) &
-                .or. (read_point_row_list(i, point_col_ref_area) < filter_area)) then
+                .or. (read_point_row_list(i, point_col_area) < filter_area)) then
                 read_point_row_enabled(i) = .false.
 
                 ! filter on both conditions
                 if((filter_score > 0.001 .and. read_point_row_list(i, point_col_score) > filter_score) &
-                    .and. (read_point_row_list(i, point_col_ref_area) < filter_area)) then
+                    .and. (read_point_row_list(i, point_col_area) < filter_area)) then
                     filter_stat_area_and_score = filter_stat_area_and_score + 1
 
-                    print *, 'point removed area/score', &
+                    write(fp,*) 'point removed area/score', &
                         nint(read_point_row_list(i,point_col_id)), &
                         read_point_row_list(i,point_col_ref_area), &
                         read_point_row_list(i,point_col_score)
@@ -250,7 +268,7 @@ program route_tree
                 elseif  (filter_score > 0.001 .and. read_point_row_list(i, point_col_score) > filter_score) then ! filter on just score
                     filter_stat_score = filter_stat_score + 1
 
-                    print *, 'point removed score', &
+                    write(fp,*) 'point removed score', &
                         nint(read_point_row_list(i,point_col_id)), &
                         read_point_row_list(i,point_col_ref_area), &
                         read_point_row_list(i,point_col_score)
@@ -258,7 +276,7 @@ program route_tree
                 else ! filter on just area
                     filter_stat_area = filter_stat_area + 1
 
-                    print *, 'point removed area', &
+                    write(fp,*) 'point removed area', &
                         nint(read_point_row_list(i,point_col_id)), &
                         read_point_row_list(i,point_col_ref_area), &
                         read_point_row_list(i,point_col_score)
@@ -286,12 +304,12 @@ program route_tree
                     if(read_point_row_enabled(i)) then
                         read_point_row_enabled(i) = .false.
                         filter_stat_duplicate = filter_stat_duplicate + 1
-                        print *, 'point removed duplicate location', nint(read_point_row_list(i,point_col_id))
+                        write(fp,*) 'point removed duplicate location', nint(read_point_row_list(i,point_col_id))
                     endif
 
                     read_point_row_enabled(j) = .false.
                     filter_stat_duplicate = filter_stat_duplicate + 1
-                    print *, '      removed duplicate location', nint(read_point_row_list(j,point_col_id))
+                    write(fp,*) '      removed duplicate location', nint(read_point_row_list(j,point_col_id))
 
                 endif
             end do
@@ -300,20 +318,25 @@ program route_tree
 
     point_count = count(read_point_row_enabled)
 
-    print *, 'Filters catchments'
-    print *, 'Removed Area          : ', filter_stat_area
-    print *, 'Removed Score         : ', filter_stat_score
-    print *, 'Removed Area and Score: ', filter_stat_area_and_score
-    print *, 'Removed Duplicate     : ', filter_stat_duplicate
-    print *, 'Removed NA            : ', filter_stat_na
 
+    print *, 'Filters catchments'
     print *, 'Initial Points        : ', size(read_point_row_enabled)
     filter_valid = size(read_point_row_enabled) - filter_stat_na
     print *, 'Valid Points         : ', filter_valid
     print *, 'Remaining Points     : ', point_count
 
-    print *, '% of valid removed   : ',100- real(point_count)/real(filter_valid)*100
-
+    write(fp,*) ''
+    write(fp,*) 'Filters catchments'
+    write(fp,*) 'Removed Area          : ', filter_stat_area
+    write(fp,*) 'Removed Score         : ', filter_stat_score
+    write(fp,*) 'Removed Area and Score: ', filter_stat_area_and_score
+    write(fp,*) 'Removed Duplicate     : ', filter_stat_duplicate
+    write(fp,*) 'Removed NA            : ', filter_stat_na
+    write(fp,*) 'Initial Points        : ', size(read_point_row_enabled)
+    filter_valid = size(read_point_row_enabled) - filter_stat_na
+    write(fp,*) 'Valid Points         : ', filter_valid
+    write(fp,*) 'Remaining Points     : ', point_count
+    write(fp,*) '% of valid removed   : ',100- real(point_count)/real(filter_valid)*100
 
     if(point_count == 0) then
         print *, 'No remaining points, try removing filters'
@@ -338,44 +361,46 @@ program route_tree
 
 
     print *, 'read dem grid:', trim(in_dem_file)
+    write(fp,*)''
+    write(fp,*) 'read dem grid', trim(in_dem_file)
     CALL timer_get(start_time)
     call read_ascii_grid(in_dem_file, dem_grid, &
         ncols, nrows, xllcorner, yllcorner, cellsize, double_nodata)
     CALL timer_get(end_time)
-    call timer_print('read dem grid', start_time, end_time)
+    !call timer_print('read dem grid', start_time, end_time)
 
     if (nrows /= riv_nrows .or. ncols /= riv_ncols) then
         print *, 'river file does not match dem'
         stop
     endif
 
-    !    if (len_trim(sea_outlet_input_file) > 0) then
-    !        call read_numeric_list(sea_outlet_input_file, 2, 1, read_manual_sea_outlets)
-    !
-    !        print *, 'outlets from file', size(read_manual_sea_outlets,1)
-    !        allocate(sea_outlets(size(read_manual_sea_outlets,1)))
-    !
-    !        do i=1,size(read_manual_sea_outlets,1)
-    !            !                            northing                      easting
-    !            call NorthingEastingToRowCol(read_manual_sea_outlets(i,2), read_manual_sea_outlets(i,1), &
-    !                nrows, xllcorner, yllcorner, cellsize,&
-    !                sea_outlets(i)%y, sea_outlets(i)%x)
-    !        end do
-    !
-    !        deallocate(read_manual_sea_outlets)
-    !    else
-    print *, 'find outlets joining sea'
-    allocate(sea_mask_grid(nrows,ncols))
-    sea_mask_grid = .false.
-    where(dem_grid<-90) sea_mask_grid = .true.
+!    if (len_trim(sea_outlet_input_file) > 0) then
+!        call read_numeric_list(sea_outlet_input_file, 2, 1, read_manual_sea_outlets)
+!
+!        print *, 'outlets from file', size(read_manual_sea_outlets,1)
+!        allocate(sea_outlets(size(read_manual_sea_outlets,1)))
+!
+!        do i=1,size(read_manual_sea_outlets,1)
+!            !                            northing                      easting
+!            call NorthingEastingToRowCol(read_manual_sea_outlets(i,2), read_manual_sea_outlets(i,1), &
+!                nrows, xllcorner, yllcorner, cellsize,&
+!                sea_outlets(i)%y, sea_outlets(i)%x)
+!        end do
+!
+!        deallocate(read_manual_sea_outlets)
+!    else
+        write(fp,*) 'find outlets joining sea'
+        allocate(sea_mask_grid(nrows,ncols))
+        sea_mask_grid = .false.
+        where(dem_grid<-90) sea_mask_grid = .true.
 
-    call river_find_outlets(nrows, ncols, &
-        riv_mask_grid, sea_mask_grid, sea_outlets)
+        call river_find_outlets(nrows, ncols, &
+            riv_mask_grid, sea_mask_grid, sea_outlets)
 
-    deallocate(sea_mask_grid)
-    tmp_char = in_dem_file(1:len_trim(in_dem_file)-4)//'_outlet.txt'
-    call write_point_list(tmp_char, sea_outlets, nrows, xllcorner, yllcorner, cellsize)
-    !    endif
+        deallocate(sea_mask_grid)
+        !tmp_char = in_dem_file(1:len_trim(in_dem_file)-4)//'_outlet.txt'
+        !call write_point_list(tmp_char, sea_outlets, nrows, xllcorner, yllcorner, cellsize)
+!    endif
 
     allocate (flow_dir_grid(nrows,ncols))
     allocate (slope_grid(nrows,ncols))
@@ -411,13 +436,15 @@ program route_tree
         riv_dist_grid, &
         riv_reach_increment_m, riv_reach_increment_m_min, &
         point_col_id, &
-        node_list, riv_label_grid)
+        node_list, riv_label_grid, fp)
 
     deallocate(riv_mask_grid)
 
     tmp_char = trim(riv_output_prefix)//'_dist.asc'
 
     print*,'Write: ', trim(tmp_char)
+    write(fp,*) ''
+    write(fp,*) 'Write: ', trim(tmp_char)
     call write_ascii_grid(tmp_char, riv_dist_grid, &
         ncols, nrows, &
         xllcorner, yllcorner, cellsize, 0.0d0, 3)
@@ -430,16 +457,21 @@ program route_tree
 
     tmp_char = trim(riv_output_prefix)//'_id.asc'
     print *, 'Write river label grid: ', trim(tmp_char)
+    write(fp,*) 'Write river label grid: ', trim(tmp_char)
     call write_ascii_grid_int(tmp_char, riv_label_grid, ncols, nrows, xllcorner, yllcorner, cellsize, 0)
 
-    tmp_char = trim(dem_output_prefix)//'_tree.gdot'
-    print *, 'Write graph: ', trim(tmp_char)
-    call riv_tree_write_graph(tmp_char, node_list)
+    !tmp_char = trim(dem_output_prefix)//'_tree.gdot'
+    !print *, 'Write graph: ', trim(tmp_char)
+    !call riv_tree_write_graph(tmp_char, node_list)
 
     call riv_tree_write(node_list, nrows, xllcorner, yllcorner, cellsize, dem_output_prefix)
 
     CALL timer_get(end_time)
-    call timer_print('route_tree', run_start_time, end_time)
+    !call timer_print('route_tree', run_start_time, end_time)
+        write(fp,*) ''
+    write(fp,*) 'Successfully finished route_tree.f90'
+    print *, '--- Finished route_tree ---'
+    close(fp)
     stop
 
 end program route_tree

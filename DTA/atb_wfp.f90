@@ -29,11 +29,11 @@ program atb_wfp
     double precision :: xllcorner
     double precision :: yllcorner
     double precision :: cellsize
-    double precision :: nodata
+    double precision :: nodata, nodata_riv
     integer :: nodata_int
     integer :: i
     integer :: j
-    integer :: allocateStatus
+    integer :: allocateStatus, ioerr
 
     type(point_type), allocatable, dimension(:) :: peak_list
     type(point_type), allocatable, dimension(:) :: bound_list
@@ -78,7 +78,20 @@ program atb_wfp
     output_dir = ''
 
     i = 0
-    print *, '--- atb_wfp ---'
+
+    tmp_char = 'DTA_atb_wfp.log'
+    open(999, file = tmp_char, status="unknown", action="write", iostat=ioerr)
+
+    if(ioerr/=0) then
+        print*,'error opening output file: ', trim(tmp_char)
+        print*,'ensure the directory exists and correct write permissions are set'
+        stop
+    endif
+
+    write(999,*) '--- atb_wfp.f90 ---'
+    write(999,*) ''
+    print *, '--- Starting atb_wfp ---'
+
     do
         CALL get_command_argument(i, arg)
         if(len_trim(arg) == 0) exit
@@ -113,21 +126,29 @@ program atb_wfp
         stop
     endif
 
+    write(999,*) 'in_dem_file: ', trim(in_dem_file)
+    write(999,*) 'in_mask_file: ', trim(in_mask_file)
+    write(999,*) 'in_riv_file: ', trim(in_riv_file)
+    write(999,*) ''
+
     print *, 'in_dem_file: ', trim(in_dem_file)
     print *, 'in_mask_file: ', trim(in_mask_file)
     print *, 'in_riv_file: ', trim(in_riv_file)
     print *, ''
 
     print *, 'read_ascii_grid dem'
+    write(999,*) 'read_ascii_grid dem'
+
     CALL timer_get(start_time)
 
     call read_ascii_grid(in_dem_file, dem, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
 
     CALL timer_get(end_time)
-    call timer_print('read_ascii_grid', start_time, end_time)
+    !call timer_print('read_ascii_grid', start_time, end_time)
 
     if(len_trim(in_mask_file) > 0) then
         print *, 'read_ascii_grid mask'
+        write(999,*) 'read_ascii_grid mask'
         char_mask = '_mask'
         CALL timer_get(start_time)
 
@@ -136,7 +157,7 @@ program atb_wfp
             xllcorner, yllcorner, cellsize, nodata_int)
 
         CALL timer_get(end_time)
-        call timer_print('read_ascii_grid', start_time, end_time)
+        !call timer_print('read_ascii_grid', start_time, end_time)
 
         if(catch_mask_ncols /= ncols .or. catch_mask_nrows /= nrows) then
             print *, 'Error: mask grid size different from dem'
@@ -146,12 +167,13 @@ program atb_wfp
 
     if(len_trim(in_riv_file) > 0) then
         print *, 'read_ascii_grid river'
+        write(999,*) 'read_ascii_grid river'
         char_riv = '_riv'
         CALL timer_get(start_time)
 
-        call read_ascii_grid(in_riv_file, riv, riv_ncols, riv_nrows, xllcorner, yllcorner, cellsize, nodata)
+        call read_ascii_grid(in_riv_file, riv, riv_ncols, riv_nrows, xllcorner, yllcorner, cellsize, nodata_riv)
         CALL timer_get(end_time)
-        call timer_print('read_ascii_grid', start_time, end_time)
+        !call timer_print('read_ascii_grid', start_time, end_time)
 
         if(riv_ncols /= ncols .or. riv_nrows /= nrows) then
             print *, 'Error: river grid size different from dem'
@@ -183,44 +205,46 @@ program atb_wfp
             enddo
         enddo
         CALL timer_get(end_time)
-        call timer_print('update nodata', start_time, end_time)
+        !call timer_print('update nodata', start_time, end_time)
         nodata = -9999
     endif
 
     CALL timer_get(start_time)
     call find_peaks(nrows, ncols, dem, peak_list)
     CALL timer_get(end_time)
-    call timer_print('find peaks', start_time, end_time)
-    print '(A, I0, '' / '', I0)', 'peaks found: ', size(peak_list), nrows*ncols
+    !call timer_print('find peaks', start_time, end_time)
+    !print '(A, I0, '' / '', I0)', 'peaks found: ', size(peak_list), nrows*ncols
 
     ! add all the catchment boundary cells as peaks
     ! doesn't matter if too many start points, as long as they are sorted
     if(allocated(catch_mask)) then
 
         call find_mask_bounds(nrows, ncols, catch_mask, bound_list, peak_list)
-        print '(A, I0)', 'mask boundary cells: ', size(bound_list) - size(peak_list)
+        !print '(A, I0)', 'mask boundary cells: ', size(bound_list) - size(peak_list)
         deallocate(peak_list)
         call move_alloc(bound_list, peak_list)
 
     endif
 
     CALL timer_get(start_time)
-    print *, 'sort peaks', size(peak_list)
+    !print *, 'sort peaks', size(peak_list)
     call QsortC(peak_list, dem)
     CALL timer_get(end_time)
-    call timer_print('sort peaks', start_time, end_time)
+    !call timer_print('sort peaks', start_time, end_time)
 
     CALL timer_get(start_time)
-    print *, 'calc atb'
+    print *, 'calculating accumulated area, slope and topographic index'
+    write(999,*) 'calculating accumulated area, slope and topographic index'
+
     call calc_atb(nrows, ncols, &
         riv_nrows, riv_ncols, &
         catch_mask_nrows, catch_mask_ncols, &
         dem, riv, catch_mask, peak_list, a, c, slope, cellsize)
     CALL timer_get(end_time)
-    call timer_print('calc atb', start_time, end_time)
+    !call timer_print('calc atb', start_time, end_time)
 
     CALL timer_get(start_time)
-    print *, 'logarithm'
+    !print *, 'logarithm'
     do i=1,nrows
         do j=1,ncols
             if(c(i,j)>-9000) then
@@ -239,30 +263,39 @@ program atb_wfp
         enddo
     enddo
     CALL timer_get(end_time)
-    call timer_print('logarithm', start_time, end_time)
+    !call timer_print('logarithm', start_time, end_time)
+
+    write(999,*) ''
 
     tmp_char = in_dem_file(1:len_trim(in_dem_file)-4) //trim(char_riv)//trim(char_mask)// '_atb.asc'
+    print *, ''
     print *, 'write:', trim(tmp_char)
+    write(999,*) 'writing: ', trim(tmp_char)
     CALL timer_get(start_time)
     call write_ascii_grid(tmp_char, c, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, 3)
     CALL timer_get(end_time)
-    call timer_print('write', start_time, end_time)
+    !call timer_print('write', start_time, end_time)
 
     tmp_char = in_dem_file(1:len_trim(in_dem_file)-4) //trim(char_riv)//trim(char_mask)// '_area.asc'
     print *, 'write:', trim(tmp_char)
+    write(999,*) 'writing: ', trim(tmp_char)
     CALL timer_get(start_time)
     call write_ascii_grid(tmp_char, a, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, 3)
     CALL timer_get(end_time)
-    call timer_print('write', start_time, end_time)
+    !call timer_print('write', start_time, end_time)
 
     tmp_char = in_dem_file(1:len_trim(in_dem_file)-4) //trim(char_riv)//trim(char_mask)// '_mfd_slope.asc'
     print *, 'write:', trim(tmp_char)
+    write(999,*) 'writing: ', trim(tmp_char)
     CALL timer_get(start_time)
     call write_ascii_grid(tmp_char, slope, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, 6)
     CALL timer_get(end_time)
-    call timer_print('write', start_time, end_time)
+    !call timer_print('write', start_time, end_time)
 
     CALL timer_get(end_time)
-    call timer_print('atb_wfp', run_start_time, end_time)
+    print *, '--- Finished atb_wfp ---'
+    write(999,*) 'Successfully finished atb_wfp.f90'
+    close(999)
+    !call timer_print('atb_wfp', run_start_time, end_time)
 
 end program atb_wfp

@@ -100,7 +100,7 @@ contains
     end subroutine
 
 
-    subroutine calc_catch_cut_mfd( nrows, ncols, dem_grid, starty, startx, mask, &
+    subroutine calc_catch_cut_mfd( nrows, ncols, dem, starty, startx, mask, &
         miny, maxy, minx, maxx, area_count)
         !%CATCH_CUT Find all upstream cells from the given point, labells with flow
         !%length
@@ -113,7 +113,7 @@ contains
         implicit none
         integer, intent(in) :: nrows
         integer, intent(in) :: ncols
-        double precision, intent(in) :: dem_grid (nrows, ncols)
+        double precision, intent(in) :: dem (nrows, ncols)
         integer, intent(in) :: starty
         integer, intent(in) :: startx
 
@@ -173,7 +173,7 @@ contains
                 maxx = x
             endif
 
-            elevation = dem_grid(y, x)
+            elevation = dem(y, x)
             counter = mask(y, x)
 
             !print *, 'dequeue', node%x, node%y, counter
@@ -201,7 +201,7 @@ contains
                     !% label and push to stack any cell that is higher than this cell
                     !% label only unlebelled cells (mask..=0)
                     !% re-label if the distance is less
-                    if(dem_grid(y_n,x_n) >= elevation .and. &
+                    if(dem(y_n,x_n) >= elevation .and. &
                         (mask(y_n,x_n) < 0.5 .or. &
                         mask(y_n,x_n) > upCounter)) then
                         node%x = x_n
