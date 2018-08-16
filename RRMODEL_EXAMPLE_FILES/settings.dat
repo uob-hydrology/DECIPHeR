@@ -1,0 +1,48 @@
+! DYMOND Settings File
+
+param_file  :	SETTINGS/params.dat
+mstruct_file:	SETTINGS/model_structure.dat
+n_cat_setups:	0003
+n_flow_setps:	0003
+
+ --- DATA LOCATIONS AND SETTINGS FOR ALL CATCHMENT SETUPS (must be n_cat_setups entries): -----------------------	
+
+setup_name  :	HRUS SETUP 1 - 6 classes of acc area, gridded 10km input grid
+HRU_filepath:	INPUTS/Catch1_HRU1_dyna_hru.dat
+HRU_metafile:	INPUTS/Catch1_HRU1_hru_meta.dat
+flow_conn   :	INPUTS/Catch1_flow_conn.dat
+riv_data    :	INPUTS/Catch1_riv_data.dat
+flow_point  :	INPUTS/Catch1_flow_point.dat
+
+setup_name  :	HRUS SETUP 2 - 3 classes of acc area, gridded 10km input grid
+HRU_filepath:	INPUTS/Catch1_HRU2_dyna_hru.dat
+HRU_metafile:	INPUTS/Catch1_HRU2_hru_meta.dat
+flow_conn   :	INPUTS/Catch1_flow_conn.dat
+riv_data    :	INPUTS/Catch1_riv_data.dat
+flow_point  :	INPUTS/Catch1_flow_point.dat
+
+setup_name  :	HRUS SETUP 3 - 3 classes of acc area, lumped input grid
+HRU_filepath:	INPUTS/Catch1_HRU3_dyna_hru.dat
+HRU_metafile:	INPUTS/Catch1_HRU3_hru_meta.dat
+flow_conn   :	INPUTS/Catch1_flow_conn.dat
+riv_data    :	INPUTS/Catch1_riv_data.dat
+flow_point  :	INPUTS/Catch1_flow_point.dat
+
+ --- DATA LOCATION AND SETTINGS FOR ALL INPUT SETUPS (must be n_flow_setups entries) : ----------------------------
+
+setup_name  :	10km gridded rain and pet 2001 - 2012
+flow_file   :	INPUTS/Catch1_10k_obsq.dat
+precip_file :	INPUTS/Catch1_10k_rain.dat
+evap_file   :	INPUTS/Catch1_10k_PET.dat
+
+setup_name  :	lumped rain and pet 2001 - 2012
+flow_file   :	INPUTS/Catch1_lump_obsq.dat
+precip_file :	INPUTS/Catch1_lump_rain.dat
+evap_file   :	INPUTS/Catch1_lump_PET.dat
+
+setup_name  :	lumped rain and pet 1995 - 2012
+flow_file   :	INPUTS/Catch1_lump95_obsq.dat
+precip_file :	INPUTS/Catch1_lump95_rain.dat
+evap_file   :	INPUTS/Catch1_lump95_PET.dat
+
+

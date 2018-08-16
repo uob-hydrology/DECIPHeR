@@ -1,0 +1,37 @@
+10		! Number of simulations you want to run
+5	2000	! Seeds for this run
+1	0.8	0.000000001	! Kinematic solution Parameters
+3	14	!number of parameter layers(rows/hrus), number of param names (columns-1)
+
+param_layer	szm_ll	szm_ul	lnto_ll	lnto_ul	srmax_ll	srmax_ul	srinit_ll	srinit_ul chv_ll	chv_ul	td_ll	td_ul	smax_ll	smax_ul	
+1	0.001	0.07	-7	5	0.005	0.15	0	0.01	250	4000	0.1	40	0.2	3	
+2	0.005	0.007	-7	-2	0.005	0.15	0	0.01	1000	4000	0.1	1	0.2	3
+3	0.01	0.04	1	4	0.005	0.15	0	0.01	3000	4000	0.1	40	0.2	3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

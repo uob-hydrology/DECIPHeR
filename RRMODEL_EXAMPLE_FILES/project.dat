@@ -1,0 +1,15 @@
+! DYMOND Example Project File
+2		! total number of project files
+
+project_name:	Catchment 1 
+project_dir :	/data/MODEL/Catchment1/
+projectfiles:	SETTINGS/settings
+project_out :	OUTPUT/Catch1_
+
+project_name:	Catchment 2
+project_dir :	/data/MODEL/Catchment2/
+projectfiles:	SETTINGS/settings
+project_out :	OUTPUT/Catch2_
+
+
+
