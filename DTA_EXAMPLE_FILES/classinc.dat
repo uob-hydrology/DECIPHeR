@@ -1,0 +1,7 @@
+! classinc.dat specifies the classification fractions for slope and accumulated area, these must sum up to 1
+AREA	3	
+0.33	0.33	0.34
+SLOPE	3	
+0.33	0.33	0.34
+!ELEV	4
+!0.25	0.25	0.25	0.25

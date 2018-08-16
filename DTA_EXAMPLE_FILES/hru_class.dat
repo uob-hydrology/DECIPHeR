@@ -1,0 +1,8 @@
+!----------------------------
+! HRU CLASSIFIERS
+!----------------------------
+TOPO_CLASS=/data/DTA/classinc.dat
+INPUT_RAIN_CLASS=/data/DTA/REF_GRIDS/input_grid_10km.asc
+!INPUT_PET_CLASS=/data/DTA/REF_GRIDS/input_grid_10km.asc
+!MODELSTRUCT_CLASS=/data/DTA/REF_GRIDS/modelstruct_grid_hydrogeo.asc
+!PARAM_CLASS=/data/DTA/REF_GRIDS/param_grid_soils.asc
