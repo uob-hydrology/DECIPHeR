@@ -32,3 +32,8 @@
 *.app
 *.e
 *.d
+
+# Eclipse Files
+*.cproject
+*.project
+*.prefs
