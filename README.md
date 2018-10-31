@@ -4,3 +4,5 @@ DECIPHeR is a flexible modelling framework for hydrologic simulation and predict
 The code is available through this GitHub Repository (https://github.com/uob-hydrology/DECIPHeR).  If you have any questions about using or running the code then please contact gemma.coxon@bristol.ac.uk
 ### Documentation
 DeCIPHER has been documented in an open access paper which is soon to be submitted to Geoscientific Model Development.  A user manual is also provided in the repository to help researchers and/or practitioners to use the model.  
+### DOI
+[![DOI](https://zenodo.org/badge/144010529.svg)](https://zenodo.org/badge/latestdoi/144010529)
