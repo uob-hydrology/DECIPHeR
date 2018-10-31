@@ -250,6 +250,10 @@ program atb_wfp
             if(c(i,j)>-9000) then
                 if(c(i,j)>0) then
                     c(i,j) = log(c(i,j))
+                    ! GC - ensures topographic index is never zero - can happen with small grid cells
+                    if(c(i,j)<0) then
+                    c(i,j) = 0.01
+                    endif
                 else
                     c(i,j) = 0
                 endif
