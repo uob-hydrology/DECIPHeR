@@ -154,7 +154,7 @@ program catch_cut
             CALL get_command_argument(i+1, in_point_file)
         elseif (are_equal(arg, '-ref_catch')) then
             CALL get_command_argument(i+1, ref_catch_dir)
-        elseif (are_equal(arg, '-init_searchradius')) then
+        elseif (are_equal(arg, '-search_radius')) then
             CALL get_command_argument(i+1, arg)
             read (arg,*) initial_radiusM
         endif
@@ -185,7 +185,7 @@ program catch_cut
         print *, '           <dir> containing asc files names catchment_id.asc'
         print *, '-river <file.asc>   select river ascii grid file'
         print *, '       searches marked river cells, matches the best by area or reference'
-        print *, '-init_searchradius [optional] initial search radius (m) to search for candidate'
+        print *, '-search_radius [optional] initial search radius (m) to search for candidate'
         print *, '                    river cells'
         print *, ''
         print *, 'Input data description'
