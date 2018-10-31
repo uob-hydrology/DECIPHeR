@@ -1,5 +1,7 @@
 !% Toby Dunne
 !% Mar 2016
+!% Modified by Gemma Coxon to calculate slope/topographic index properly when no downslope (i.e. coastal cells or edges of DEMs)
+!% Oct 2018
 module dta_atb_wfp
     implicit none
     double precision :: routefrac_cardinal
@@ -485,9 +487,76 @@ contains
                     enddo
                 endif
             endif
-        else
 
+        else if ((nroute.eq.0) .and. (dem(node%Y, node%X) > - 9000)) then
+
+        ! Fix for coastal cells with no downslope - use average of inflow slopes
+
+            ! Check to see if has a no data cell around it (i.e. the sea!)
+            stop_flag = .true.
+            do j=-1,1
+            do k=-1,1
+                if((j==0.and.k==0)) then
+                    cycle
+                endif
+                y = node%Y + j
+                x = node%X + k
+                if (x < 1 .or. y < 1 .or. x > ncols .or. y > nrows ) then
+                    cycle
+                endif
+
+            if(dem(y,x) < -9000) then
+                stop_flag = .false.
+            end if
+
+            end do
+            end do
+
+
+            if (stop_flag .eqv. .false.) then
+                 ! slope and wfp is calculated from upslope cells
+
+               do j=-1,1
+               do k=-1,1
+
+                if((j==0.and.k==0)) then
+                    cycle
+                endif
+                y = node%Y + j
+                x = node%X + k
+                if (x < 1 .or. y < 1 .or. x > ncols .or. y > nrows ) then
+                    cycle
+                endif
+
+                if(dem(y,x) > -9000) then
+                     if(j == 0 .or. k == 0) then
+                            routefrac = routefrac_cardinal
+                            routedist = routedist_cardinal
+                        else
+                            routefrac = routefrac_ordinal
+                            routedist = routedist_ordinal
+                        endif
+
+                      wfp(j+2, k+2) = (dem(y, x) - dem(node%Y, node%X)) * routefrac
+                      slopes(j+2, k+2) = (dem(y, x) - dem(node%Y, node%X)) / routedist
+                      nroute = nroute + 1
+                 end if
+                end do
+                end do
+
+            slope(node%Y, node%X) = sum(slopes) / nroute
+
+            ! tanB is the sum of outflow weights as per Jim's original code
+            tanB = sum(wfp)
+
+            if(tanB > 0) then
+
+                c(node%Y, node%X) = a(node%Y, node%X) / tanB
+
+            endif
+            end if
         endif
+
     end subroutine
 
 end module dta_atb_wfp
