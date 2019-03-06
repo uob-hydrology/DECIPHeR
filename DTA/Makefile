@@ -7,7 +7,7 @@
 #             : Supports debug and release builds
 #             : Release builds have .e extension, debug builds have .d extension
 # ============================================================================
-FC             = /usr/bin/gfortran
+FC             = gfortran
 FFLAGS         = -O0 -std=f2003 -Wall -Wextra -fbounds-check -g -fbacktrace -mcmodel=large
 FFLAGS_RELEASE = -std=f2003 -Wall -mcmodel=large
 LDFLAGS        = 
