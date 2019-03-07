@@ -96,7 +96,7 @@ program route_river_file
             CALL get_command_argument(i+1, flow_conn_file)
         elseif (are_equal(arg, '-area')) then ! optional
             CALL get_command_argument(i+1, in_area_file)
-        elseif (are_equal(arg, '-area')) then ! optional
+        elseif (are_equal(arg, '-riv_dist')) then ! optional
             CALL get_command_argument(i+1, in_riv_dist_file)
         endif
         i = i + 1
