@@ -44,7 +44,7 @@ program route_river_file
     character(1024) :: tmp_char
     !% riv_id, area, dist, section_dist, slope, elevation
     double precision, allocatable, dimension(:,:) :: river_data
-    character(64) :: col_headers(6)
+    character(64) :: col_headers(8)
 
     logical :: input_is_valid
 
@@ -54,6 +54,9 @@ program route_river_file
     col_headers(4) = 'section_dist'
     col_headers(5) = 'elevation'
     col_headers(6) = 'slope'
+    col_headers(7) = 'ds_dist'
+    col_headers(8) = 'ds_elevation'
+
 
     CALL timer_get(run_start_time)
 
@@ -259,7 +262,7 @@ program route_river_file
 
     print *, 'write ', trim(tmp_char)
     write(999,*) 'write ', trim(tmp_char)
-    call write_numeric_list(tmp_char, col_headers, river_data, 3)
+    call write_numeric_list(tmp_char, col_headers, river_data, 6)
 
     CALL timer_get(end_time)
 

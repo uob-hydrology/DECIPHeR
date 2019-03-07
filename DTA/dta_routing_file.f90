@@ -99,19 +99,20 @@ contains
 
         integer :: riv_cell_count
         integer :: total_river_cells
-        integer :: i, j
-        type(point_type) :: point
-
+        integer :: i, j, dx, dy
+        type(point_type) :: point, min_point
+        double precision :: min_point_val
         integer :: river_data_start
         integer :: river_data_end
         double precision, allocatable, dimension(:) :: river_col_tmp
+        double precision, allocatable, dimension(:) :: river_col_tmp2
 
         double precision :: min_dist
 
         ! total number of river cells
         !total_river_cells = count(riv_dist_grid > 0.001)
 
-        allocate(river_data(total_river_cells, 6))
+        allocate(river_data(total_river_cells, 8))
         river_data(:,:) = 0
         river_data_start = 1
         !%figure
@@ -119,16 +120,16 @@ contains
             !area_values = area(riv_labelled==node_list(ii).gauge_id);
             !dist_values = riv_dist(riv_labelled==node_list(ii).gauge_id);
 
-
             !% each cell can have:
-            !%      id
-            !%      area
-            !%      dist (total to final outlet)
-            !%      section_dist (to bottom of this river_id)
+            !%  1    id
+            !%  2    area
+            !%  3    dist (total to final outlet)
+            !%  4    section_dist (to bottom of this river_id)
             !%
-            !%      [not yet]  height
-            !%    [not yet]  slope (single flow direction slope to next river cell)
-            !%
+            !%  5    elevation
+            !%  6    slope (single flow direction slope to next river cell)
+            !%  7    ds_dist
+            !%  8    ds_elevation
 
             riv_cell_count = size(river_point_lists(i)%list)
             river_data_end = river_data_start + riv_cell_count-1
@@ -136,6 +137,7 @@ contains
             river_data(river_data_start:river_data_end,1) = node_list(i)%gauge_id
 
             allocate(river_col_tmp(riv_cell_count))
+            allocate(river_col_tmp2(riv_cell_count))
 
             do j= 1,riv_cell_count
                 point = river_point_lists(i)%list(j)
@@ -163,14 +165,46 @@ contains
                 point = river_point_lists(i)%list(j)
                 river_col_tmp(j) = dem_grid(point%y, point%x)
             end do
-
             river_data(river_data_start:river_data_end,5) = river_col_tmp
 
+            ! find the downstram values of elevation and distance
+            do j = 1, riv_cell_count
+
+                point = river_point_lists(i)%list(j)
+
+                min_point_val = dem_grid(point%y, point%x)
+                min_point = point
+
+                ! the downstream point is the lowest adjacent cell
+                do dy = point%y-1, point%y+1
+                do dx = point%x-1, point%x+1
+                    if (dem_grid(dy, dx) < min_point_val) then
+                        min_point_val = dem_grid(dy, dx)
+                        min_point%y = dy
+                        min_point%x = dx
+                    endif
+                enddo
+                enddo
+
+                river_col_tmp(j) = riv_dist_grid(min_point%y, min_point%x)
+                river_col_tmp2(j) = dem_grid(min_point%y, min_point%x)
+            end do
+
+            ! downstream dist
+            river_data(river_data_start:river_data_end,7) = river_col_tmp
+            !downstream elevation
+            river_data(river_data_start:river_data_end,8) = river_col_tmp2
+
             deallocate(river_col_tmp)
+            deallocate(river_col_tmp2)
 
             river_data_start = river_data_end + 1
 
         end do
+
+        ! slope         =      (elevation  - ds_elevation) /    (dist            - ds_dist)
+        river_data(:,6) = (river_data(:,5) - river_data(:,8)) / (river_data(:,3) - river_data(:,7))
+
     end subroutine routing_file_grids_to_list
 
 end module dta_routing_file
