@@ -39,6 +39,7 @@ module dta_riv_tree_node
         double precision :: downstream_delta_h
         double precision :: downstream_slope
 
+        double precision :: reach_delay
         double precision :: total_downstream_delay
         double precision :: frac_sub_area
         double precision :: catch_area
@@ -111,7 +112,7 @@ contains
 
     !% uses the upstream_indexes to calculate the full upstream tree
     !% each node will have the full list up nodes that are upstream
-    recursive subroutine riv_node_river_delay(node_list, node_index, downstream_delay, v_mode, v_param)
+    recursive subroutine riv_node_river_delay(node_list, node_index, downstream_delay)
         use dta_utility
         implicit none
         ! recurse node index
@@ -119,34 +120,17 @@ contains
         type(riv_tree_node) :: node_list(:)
         ! summed up delay of downstream nodes
         double precision , intent(in) :: downstream_delay
-        ! velocity calculation mode
-        integer :: v_mode
-        ! parameters specific to this valocity mode
-        double precision :: v_param(:)
         ! locals
         integer :: i
         integer :: up_node_index
-        ! delay on this reach
-        double precision :: this_delay
 
-        if(v_mode == V_MODE_CONSTANT) then
-            this_delay = node_list(node_index)%downstream_dist / v_param(1)
-        else if (v_mode == V_MODE_SLOPE) then
-            ! slope option not fully tested
-            this_delay = node_list(node_index)%downstream_dist / (v_param(1) * node_list(node_index)%downstream_slope)
-        else
-            print *, 'Invalid velocity calculation mode'
-            stop
-        endif
-
-        node_list(node_index)%total_downstream_delay = downstream_delay + this_delay
+        node_list(node_index)%total_downstream_delay = downstream_delay
 
         ! sum this delay upstream
         do i=1,node_list(node_index)%upstream_count
             up_node_index = node_list(node_index)%upstream_indexes(i)
             call riv_node_river_delay(node_list, up_node_index, &
-                node_list(node_index)%total_downstream_delay, &
-                v_mode, v_param)
+                downstream_delay + node_list(node_index)%reach_delay)
         end do
 
     end subroutine riv_node_river_delay

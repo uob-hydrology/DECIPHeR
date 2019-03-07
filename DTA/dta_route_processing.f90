@@ -79,7 +79,7 @@ contains
             0, 0.0d0, 0.0d0, 0.0d0, &
             flow_conn_file, flow_point_file)
 
-        call read_numeric_list(river_data_file, 6, 1, riv%river_data)
+        call read_numeric_list(river_data_file, 8, 1, riv%river_data)
 
         ! only write output for node_type=gauge
         ! count the gauge points
@@ -140,7 +140,7 @@ contains
 
         ! File ID is the same as file ID given in dyna_project.f90 GC 13/06
         !print *, 'read river data:', trim(river_data_file)
-        call read_numeric_list_fid(502, 6, 1, riv%river_data)
+        call read_numeric_list_fid(502, 8, 1, riv%river_data)
 
         ! only write output for node_type=gauge
         ! count the gauge points
@@ -187,45 +187,23 @@ contains
         double precision :: headwater_max_delay
         double precision :: river_point_max_delay
         double precision :: full_delay
-        double precision :: max_dist
-        double precision :: reach_delay
-        double precision :: max_elev, min_elev, slope
-        double precision :: reach_delay_list(size(riv%node_list))
-        double precision :: reach_length_list(size(riv%node_list))
+        double precision :: max_dist, min_dist
+        double precision :: max_elev, min_elev
+        double precision :: reach_dist, reach_slope
+        double precision :: cell_dist, cell_slope, cell_delay
         integer :: riv_start_i, riv_end_i
         integer :: hist_start_i, hist_end_i
+        double precision :: hist_cursor_a, hist_cursor_b
+        integer :: hist_a, hist_b
         integer :: total_timesteps
         double precision, allocatable :: delay_hist(:)
-        integer :: bin_count, target_bin
-        double precision :: bin_width, dist_value
+        integer :: tdh_bin_count
         integer :: sea_count
 
         if(allocated(tdh%node_hist_indexes).eqv..false.) then
             allocate(tdh%node_hist_indexes(size(riv%node_list),2))
         endif
 
-        sea_count = 0
-        do i=1,size(riv%node_list)
-            !% node type 1 is the outlet - start counting from outlets
-            if(riv%node_list(i)%downstream_index == 0) then
-                !if(riv%node_list(i)%node_type == NODE_TYPE_SEA) then
-                call riv_node_river_delay(riv%node_list, i, 0.0d0, tdh%v_mode, tdh%v_param)
-                sea_count = sea_count + 1
-            endif
-        end do
-
-        if(sea_count == 0) then
-            print *, 'Could not find any stream outlets'
-            stop
-        endif
-
-        !% this is the total maximum time to the furtherest upstream river point.
-        !% equal to river_point_max_delay plus max(reach_delay)
-        headwater_max_delay = 1
-        !% this is the maximum distance to any gauge point
-        !% this will determine the warm-up time (the first time that any water can
-        !% reach the outlet from the furtherest input point)
-        river_point_max_delay = 1
 
         do i=1,size(riv%node_list)
 
@@ -247,10 +225,10 @@ contains
             end do
             if(riv_start_i == 0) then
                 print *, 'river_id has no cells', riv%node_list(i)%gauge_id
-                reach_length_list(i) = 0
-                reach_delay_list(i) = 0
                 tdh%node_hist_indexes(i,1) = 0
                 tdh%node_hist_indexes(i,2) = 0
+                riv_data_indexes(i,1) = 0
+                riv_data_indexes(i,2) = 0
                 cycle
             endif
 
@@ -258,48 +236,63 @@ contains
             riv_data_indexes(i,2) = riv_end_i
 
             ! column 4 is secion distance
-            max_dist = maxval(riv%river_data(riv_start_i:riv_end_i,4))
+            max_dist = maxval(riv%river_data(riv_start_i:riv_end_i,3))
+            ! column 7 is secion ds_distance
+            min_dist = minval(riv%river_data(riv_start_i:riv_end_i,7))
+            ! column 5 is elevation
+            max_elev = maxval(riv%river_data(riv_start_i:riv_end_i,5))
+            ! column 8 is ds_elevation
+            min_elev = minval(riv%river_data(riv_start_i:riv_end_i,8))
 
-            if(tdh%v_mode == V_MODE_CONSTANT) then
-                !% param is velocity
-                ! v_param(1) unit is metres travelled per timestep
-                ! v = d/t
-                ! t = d/v
-                reach_delay = max_dist / tdh%v_param(1)
-            elseif (tdh%v_mode == V_MODE_SLOPE) then
-                ! slope delay
-                ! get a reach_delay based on total slope
-                ! when calculating histogram, and allocate by percentage dist for each cell
-                 ! v_param(1) when multiplied by slope should give metres travelled per timestep
+            reach_dist = max_dist - min_dist
+            reach_slope = (max_elev - min_elev) / reach_dist
 
-                ! column 5 is elevation
-                max_elev = maxval(riv%river_data(riv_start_i:riv_end_i,5))
-                min_elev = minval(riv%river_data(riv_start_i:riv_end_i,5))
+            ! reach delay is time from upstream cell to downstream cell
+            ! delay on this reach only
+            riv%node_list(i)%reach_delay = calculate_cell_delay(reach_dist, reach_slope, tdh)
 
-                slope = (max_elev - min_elev) / max_dist
-                reach_delay = max_dist / (tdh%v_param(1) * slope)
-            else
-                print *, 'unknown velocity mode'
-                stop
+            !reach_length_list(i) = reach_dist ! used to distribute percentage of delay
+            !reach_delay_list(i) = reach_delay
+
+        end do
+
+
+        sea_count = 0
+        do i=1,size(riv%node_list)
+            !% node type 1 is the outlet - start counting from outlets
+            if(riv%node_list(i)%downstream_index == 0) then
+                !if(riv%node_list(i)%node_type == NODE_TYPE_SEA) then
+                call riv_node_river_delay(riv%node_list, i, 0.0d0)
+                sea_count = sea_count + 1
             endif
+        end do
 
-            reach_length_list(i) = max_dist ! used to distribute percentage of delay
-            reach_delay_list(i) = reach_delay
+        if(sea_count == 0) then
+            print *, 'Could not find any stream outlets'
+            stop
+        endif
+
+        !% this is the total maximum time to the furtherest upstream river point.
+        !% equal to river_point_max_delay plus max(reach_delay)
+        headwater_max_delay = 1
+        !% this is the maximum distance to any gauge point
+        !% this will determine the warm-up time (the first time that any water can
+        !% reach the outlet from the furtherest input point)
+        river_point_max_delay = 1
+
+        do i=1,size(riv%node_list)
 
             !% full distance from furtherest river cell to the outlet
-            full_delay = reach_delay + riv%node_list(i)%total_downstream_delay
-
-            !tdh%node_hist_indexes(i,1) = floor(riv%node_list(i)%total_downstream_delay/tdh%timestep) + 1
-            !tdh%node_hist_indexes(i,2) = ceiling(full_delay/tdh%timestep) + 1
+            full_delay = riv%node_list(i)%reach_delay + riv%node_list(i)%total_downstream_delay
 
             tdh%node_hist_indexes(i,1) = floor(riv%node_list(i)%total_downstream_delay) + 1
-            tdh%node_hist_indexes(i,2) = ceiling(full_delay) + 1
+            tdh%node_hist_indexes(i,2) = floor(full_delay) + 2
 
             if(riv%node_list(i)%total_downstream_delay > river_point_max_delay) then
                 ! just recorded to see how many timesteps the flow will reach the bottom
                 river_point_max_delay = riv%node_list(i)%total_downstream_delay
             endif
-            if(full_delay > headwater_max_delay) then
+            if (full_delay > headwater_max_delay) then
                 headwater_max_delay = full_delay
             endif
 
@@ -333,46 +326,63 @@ contains
             riv_start_i = riv_data_indexes(i,1)
             riv_end_i = riv_data_indexes(i,2)
 
-            !area_values_section = river_data(start_i:end_i,2)
-            !dist_values_section = river_data(start_i:end_i,4)
+            if(riv_start_i == 0) then
+                cycle
+            endif
 
-            max_dist = reach_length_list(i)
-            reach_delay = reach_delay_list(i)
 
             !% Create the histogram for the flow input from dynamic topmodel
             !% flow is distributed along the river reach by the area accumulation
-            !% time delay is proportional to distance
 
             !indexes the time delay cell to write
             hist_start_i = tdh%node_hist_indexes(i,1)
             hist_end_i = tdh%node_hist_indexes(i,2)
 
-            bin_count = (hist_end_i - hist_start_i)+1
+            tdh_bin_count = (hist_end_i - hist_start_i) + 1
 
-            !bin_count = ceiling(reach_delay / timestep)
-
-            ! width in distance units
-            bin_width = max_dist / bin_count
-            if(int(bin_width) == 0) then
-                bin_width = 1
-            endif
-            allocate(delay_hist(bin_count))
+            allocate(delay_hist(tdh_bin_count))
             delay_hist(:) = 0
 
-            ! count accumulation at each distance
-            ! this divides the distance into equal bins
-            ! - works constant velocity and average slope options
+            hist_cursor_a = 0
 
+            ! loop over each cell in the input (river distance)
             do j=riv_start_i,riv_end_i
-                ! column 4 is river section distance
-                dist_value = riv%river_data(j,4)
-                target_bin = floor(dist_value / bin_width) + 1
-                if(target_bin > bin_count) then ! the value equal to the max dist should be put in the max bin
-                    target_bin = bin_count
+
+                ! cell_dist = dist - ds_dist
+                cell_dist = riv%river_data(j,3) - riv%river_data(j,7)
+                cell_slope = riv%river_data(j,6)
+
+                ! how long flow takes through this river cell
+                cell_delay = calculate_cell_delay(cell_dist, cell_slope, tdh)
+
+                hist_cursor_b = hist_cursor_a + cell_delay
+
+                hist_a = floor(hist_cursor_a) + 1
+                hist_b = floor(hist_cursor_b) + 2
+                if(hist_b > tdh_bin_count) then
+                    print *, 'delay error - sum of delays greater than bin_count',hist_b,tdh_bin_count
+                    hist_b = tdh_bin_count
                 endif
-                !% add the area contributing to this river distance
-                delay_hist(target_bin) = delay_hist(target_bin) + riv%river_data(j,2)
+
+                !    fill with area  accumulation for the cell
+                delay_hist(hist_a:hist_b) = delay_hist(hist_a:hist_b) + riv%river_data(j,2)
+
+                hist_cursor_a = hist_cursor_b
+
+
             end do
+
+
+!            do j=riv_start_i,riv_end_i
+!                ! column 4 is river section distance
+!                dist_value = riv%river_data(j,4)
+!                target_bin = floor(dist_value / bin_width) + 1
+!                if(target_bin > bin_count) then ! the value equal to the max dist should be put in the max bin
+!                    target_bin = bin_count
+!                endif
+!                !% add the area contributing to this river distance
+!                delay_hist(target_bin) = delay_hist(target_bin) + riv%river_data(j,2)
+!            end do
 
 
             ! normalise to 1
@@ -410,6 +420,32 @@ contains
 
 
     end subroutine route_processing_build_hist
+
+    function calculate_cell_delay(dist, slope, tdh) result(reach_delay)
+        implicit none
+        double precision :: dist
+        double precision :: reach_delay
+        double precision :: slope
+        type(route_time_delay_hist_type) :: tdh
+
+        if(tdh%v_mode == V_MODE_CONSTANT) then
+            !% param is velocity
+            ! v_param(1) unit is metres travelled per timestep
+            ! v = d/t
+            ! t = d/v
+            reach_delay = dist / tdh%v_param(1)
+        elseif (tdh%v_mode == V_MODE_SLOPE) then
+            ! slope delay
+            ! get a reach_delay based on total slope
+            ! when calculating histogram, and allocate by percentage dist for each cell
+            ! v_param(1) when multiplied by slope should give metres travelled per timestep
+            reach_delay = dist / (tdh%v_param(1) * slope)
+        else
+            print *, 'unknown velocity mode'
+            stop
+        endif
+    end function
+
 
     subroutine route_processing_test()
         implicit none
