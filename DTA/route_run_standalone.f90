@@ -32,7 +32,7 @@ program route_run_standalone
     ! in this case we have an extra node which is the sea node which doesn't have a contribution
     integer, allocatable :: node_to_flow_mapping(:)
 
-    logical :: input_is_valid
+    logical :: input_is_valid, run_test
 
     integer :: n_points, n_steps
     ! not used
@@ -66,6 +66,8 @@ program route_run_standalone
     timeseries_flow_input_file = ''
 
     input_is_valid = .true.
+    run_test = .false.
+
 
     i = 0
     print *, '--- route_run_standalone ---'
@@ -78,6 +80,8 @@ program route_run_standalone
             CALL get_command_argument(i+1, flow_conn_file)
         elseif (are_equal(arg, '-timeseries_in')) then
             CALL get_command_argument(i+1, timeseries_flow_input_file)
+        elseif (are_equal(arg, '-test')) then
+            run_test = .true.
         endif
         i = i + 1
     enddo
@@ -88,6 +92,12 @@ program route_run_standalone
     if(check_file_arg(flow_conn_file,'-tree').eqv..false.) then
         input_is_valid = .false.
     endif
+
+    if(run_test.eqv. .true.) then
+        call route_processing_test()
+        stop
+    endif
+
     if(check_file_arg(timeseries_flow_input_file,'-timeseries_in').eqv..false.) then
         input_is_valid = .false.
     endif

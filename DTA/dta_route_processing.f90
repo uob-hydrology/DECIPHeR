@@ -195,7 +195,6 @@ contains
         integer :: riv_start_i, riv_end_i
         integer :: hist_start_i, hist_end_i
         double precision :: hist_cursor_a, hist_cursor_b
-        integer :: hist_a, hist_b
         integer :: total_timesteps
         double precision, allocatable :: delay_hist(:)
         integer :: tdh_bin_count
@@ -359,34 +358,11 @@ contains
                 cell_delay = calculate_cell_delay(cell_dist, cell_slope, tdh)
 
                 hist_cursor_b = hist_cursor_a + cell_delay
-
-                hist_a = floor(hist_cursor_a) + 1
-                hist_b = floor(hist_cursor_b) + 1
-                if(hist_b > tdh_bin_count) then
-                    print *, 'delay error - sum of delays greater than bin_count',hist_b,tdh_bin_count
-                    hist_b = tdh_bin_count
-                endif
-
-                !    fill with area  accumulation for the cell
-                delay_hist(hist_a:hist_b) = delay_hist(hist_a:hist_b) + riv%river_data(j,2)
+                call hist_add_value(delay_hist, hist_cursor_a, hist_cursor_b, riv%river_data(j,2), tdh_bin_count)
 
                 hist_cursor_a = hist_cursor_b
 
-
             end do
-
-
-!            do j=riv_start_i,riv_end_i
-!                ! column 4 is river section distance
-!                dist_value = riv%river_data(j,4)
-!                target_bin = floor(dist_value / bin_width) + 1
-!                if(target_bin > bin_count) then ! the value equal to the max dist should be put in the max bin
-!                    target_bin = bin_count
-!                endif
-!                !% add the area contributing to this river distance
-!                delay_hist(target_bin) = delay_hist(target_bin) + riv%river_data(j,2)
-!            end do
-
 
             ! normalise to 1
             delay_hist = delay_hist / sum(delay_hist)
@@ -396,33 +372,62 @@ contains
             deallocate(delay_hist)
         end do
 
-    !debugging print the time delay histogram
-    !        print*, 'tdh -------------'
-    !        !do i=1,size(riv%node_list)
-    !        print*,( riv%node_list(i)%gauge_id, i=1,size(riv%node_list) )
-    !
-    !        print*,( riv%node_list(i)%total_downstream_delay, i=1,size(riv%node_list) )
-    !        print*,''
-    !        !end do
-    !
-    !        do i=1,size(tdh%route_hist_table,2)
-    !        print*,tdh%route_hist_table(:,i)
-    !        end do
-
-    ! Morpeth test
-    !% add an additional row for the ungauged outlet
-    !template = zeros(size(flow_data,1),1);
-    !flow_data = [template flow_data];
-
-
-    !timestep_count = size(flow_data,1);
-    !point_count = size(flow_data,2);
-    !% matrix to put the total flow sum for each point
-    !q_total = zeros(timestep_count, point_count);
-
-
-
     end subroutine route_processing_build_hist
+
+    subroutine hist_add_value(delay_hist, hist_cursor_a, hist_cursor_b, value, tdh_bin_count)
+        implicit none
+        double precision :: delay_hist(*)
+        double precision :: hist_cursor_a
+        double precision :: hist_cursor_b
+        double precision :: value
+        integer :: tdh_bin_count
+        double precision :: fraction_value
+
+        integer :: hist_a
+        integer :: hist_b
+
+        ! get the dest cell index (+1 to make this 1 based indexing)
+        hist_a = floor(hist_cursor_a) + 1
+        hist_b = floor(hist_cursor_b) + 1
+        if(hist_b > tdh_bin_count) then
+            print *, 'delay error - sum of delays greater than bin_count',hist_b,tdh_bin_count
+            hist_b = tdh_bin_count
+        endif
+
+        if(hist_a == hist_b) then
+            ! if the delay is smaller than a single bin
+            ! scale the accumulation by the fraction in this cell
+            fraction_value = (hist_cursor_b - hist_cursor_a)
+            delay_hist(hist_a:hist_b) = delay_hist(hist_a:hist_b) + value * fraction_value
+        else
+            !    fill with area  accumulation for the cell
+
+            ! a more accurate method would be to alter the first and last cell amounts by the fractional delay
+            ! e.g. hist_cursor_a = 0.6
+            !      hist_cursor_b = 2.3
+            ! this delay will be put into 3 cells
+            ! - first cell delay is 0.6 the 'fractional accumulation' is 0.4
+            ! - middle cell(s) 100% of accumulation
+            ! - last cell delay is 0.3 the 'fractional accumulation' is 0.3
+            ! |______wwww|wwwwwwwwww|www_______|
+            !
+            ! since a delay of 0.6 cannot be split as we have fixed bin size
+            ! (1 - 0.6) * accumulation will be routed at 0 delay
+
+            ! middle cell(s)
+            if( (hist_a+1) <= (hist_b-1) ) then
+                delay_hist((hist_a+1):(hist_b-1)) = delay_hist((hist_a+1):(hist_b-1)) + value
+            endif
+
+            ! first cell (+1 to convert from one based index)
+            fraction_value = (1 - (hist_cursor_a - hist_a + 1))
+            delay_hist(hist_a) = delay_hist(hist_a) + (value * fraction_value)
+            ! last cell (+1 to convert from one based index)
+            fraction_value = (hist_cursor_b - hist_b + 1)
+            delay_hist(hist_b) = delay_hist(hist_b) + (value * fraction_value)
+        endif
+    end subroutine
+
 
     function calculate_cell_delay(dist, slope, tdh) result(reach_delay)
         implicit none
@@ -449,8 +454,82 @@ contains
         endif
     end function
 
+    subroutine add_accumulation_test()
+        implicit none
+        double precision, allocatable :: delay_hist(:)
+        integer :: tdh_bin_count
 
-    subroutine route_processing_test()
+        tdh_bin_count = 6
+
+        allocate(delay_hist(tdh_bin_count))
+
+        delay_hist(:) = 0
+        call hist_add_value(delay_hist, 2.2d0, 2.4d0, 1.0d0, tdh_bin_count)
+
+        delay_hist(:) = 0
+        call hist_add_value(delay_hist, 2.2d0, 3.1d0, 1.0d0, tdh_bin_count)
+
+        delay_hist(:) = 0
+        call hist_add_value(delay_hist, 2.2d0, 4.2d0, 1.0d0, tdh_bin_count)
+
+        delay_hist(:) = 0
+        call hist_add_value(delay_hist, 2.2d0, 5.2d0, 1.0d0, tdh_bin_count)
+
+
+        deallocate(delay_hist)
+
+    end subroutine add_accumulation_test
+
+    subroutine build_hist_test()
+        implicit none
+        type(route_river_info_type) :: riv
+        type(route_time_delay_hist_type) :: tdh
+
+        character(1024) river_data_file
+        character(1024) flow_conn_file
+
+        tdh%timestep = 3600.0d0
+        tdh%v_mode = V_MODE_CONSTANT
+        allocate(tdh%v_param(1))
+        tdh%v_param(1) = 30.133d0
+
+        river_data_file = '001_dem_river_data.txt'
+        flow_conn_file = '001_dem_rl250_flow_conn.txt'
+
+
+        call route_processing_read_info(river_data_file, flow_conn_file, riv)
+
+        tdh%v_param(1) = 20.133d0
+        call route_processing_build_hist(riv, tdh)
+
+        !filename, grid, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, write_precision
+        call write_ascii_grid('hist_v20.txt', tdh%route_hist_table, &
+            size(tdh%route_hist_table, 2), size(tdh%route_hist_table, 1) , &
+            0.0d0, 0.0d0, 0.0d0, 0.0d0, 6)
+
+
+        tdh%v_param(1) = 60.133d0
+        call route_processing_build_hist(riv, tdh)
+
+        !filename, grid, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, write_precision
+        call write_ascii_grid('hist_v60.txt', tdh%route_hist_table, &
+            size(tdh%route_hist_table, 2), size(tdh%route_hist_table, 1) , &
+            0.0d0, 0.0d0, 0.0d0, 0.0d0, 6)
+
+
+        tdh%v_param(1) = 80.133d0
+        call route_processing_build_hist(riv, tdh)
+
+        !filename, grid, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, write_precision
+        call write_ascii_grid('hist_v80.txt', tdh%route_hist_table, &
+            size(tdh%route_hist_table, 2), size(tdh%route_hist_table, 1) , &
+            0.0d0, 0.0d0, 0.0d0, 0.0d0, 6)
+
+
+    end subroutine build_hist_test
+
+
+    subroutine shift_flow_test()
         implicit none
         ! 4 timesteps
         ! 3 nodes
@@ -485,6 +564,14 @@ contains
             end do
 
         end do
+
+    end subroutine shift_flow_test
+
+    subroutine route_processing_test()
+
+        call add_accumulation_test()
+
+        !call build_hist_test()
 
     end subroutine route_processing_test
 
