@@ -4,6 +4,7 @@
 !% April 2016
 module dta_route_processing
     use dta_riv_tree_node
+    use dta_utility
     implicit none
 
     type route_river_info_type
@@ -229,6 +230,7 @@ contains
                 tdh%node_hist_indexes(i,2) = 0
                 riv_data_indexes(i,1) = 0
                 riv_data_indexes(i,2) = 0
+                riv%node_list(i)%reach_delay = 0
                 cycle
             endif
 
@@ -285,8 +287,9 @@ contains
             !% full distance from furtherest river cell to the outlet
             full_delay = riv%node_list(i)%reach_delay + riv%node_list(i)%total_downstream_delay
 
+            ! add one to make the index one based rather than zero based
             tdh%node_hist_indexes(i,1) = floor(riv%node_list(i)%total_downstream_delay) + 1
-            tdh%node_hist_indexes(i,2) = floor(full_delay) + 2
+            tdh%node_hist_indexes(i,2) = floor(full_delay) + 1
 
             if(riv%node_list(i)%total_downstream_delay > river_point_max_delay) then
                 ! just recorded to see how many timesteps the flow will reach the bottom
@@ -358,7 +361,7 @@ contains
                 hist_cursor_b = hist_cursor_a + cell_delay
 
                 hist_a = floor(hist_cursor_a) + 1
-                hist_b = floor(hist_cursor_b) + 2
+                hist_b = floor(hist_cursor_b) + 1
                 if(hist_b > tdh_bin_count) then
                     print *, 'delay error - sum of delays greater than bin_count',hist_b,tdh_bin_count
                     hist_b = tdh_bin_count
