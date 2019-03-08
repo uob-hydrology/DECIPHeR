@@ -306,10 +306,15 @@ contains
         ! n: number of rows found
         integer :: n
         ! io: result of read
-        integer :: io
+        integer :: ioerr
         character(4096) :: tmp
 
-        open (99, file = filename, status = 'old')
+        open (99, file = filename, iostat=ioerr, status = 'old')
+        if(ioerr/=0)then
+            print *, 'File not found: ', trim(filename)
+            stop
+        endif
+
 
         ! skip header lines
         do i=1,header_rows
@@ -319,8 +324,8 @@ contains
         ! read through file, counting lines
         n = 0
         do
-            read(99, *,iostat=io) tmp
-            if (io/=0) exit
+            read(99, *,iostat=ioerr) tmp
+            if (ioerr/=0) exit
             n = n + 1
         end do
 
@@ -468,8 +473,14 @@ contains
         double precision :: nodata
         ! Local declares
         character(256) param_name
+        integer :: ioerr
 
-        open (99, file = filename, status = 'old')
+        open (99, file = filename, iostat=ioerr, status = 'old')
+        if(ioerr/=0)then
+            print *, 'File not found: ', trim(filename)
+            stop
+        endif
+
         read (99, *) param_name, ncols
         if(.NOT.are_equal(param_name, 'ncols')) call exit_error('invalid ascii grid' // filename)
 
@@ -510,9 +521,14 @@ contains
         double precision, allocatable, dimension(:,:) :: grid
         ! Local declares
         character(256) param_name
-        integer :: i
+        integer :: i, ioerr
 
-        open (99, file = filename, status = 'old')
+        open (99, file = filename, iostat=ioerr, status = 'old')
+        if(ioerr/=0)then
+            print *, 'File not found: ', trim(filename)
+            stop
+        endif
+
         read (99, *) param_name, ncols
         if(.NOT.are_equal(param_name, 'ncols')) call exit_error('invalid ascii grid' // filename)
 
@@ -568,9 +584,14 @@ contains
         integer, allocatable, dimension(:,:) :: grid
         ! Local declares
         character(256) param_name
-        integer :: i
+        integer :: i, ioerr
 
-        open (99, file = filename, status = 'old')
+        open (99, file = filename, iostat=ioerr, status = 'old')
+        if(ioerr/=0)then
+            print *, 'File not found: ', trim(filename)
+            stop
+        endif
+
         read (99, *) param_name, ncols
         if(.NOT.are_equal(param_name, 'ncols')) call exit_error('invalid ascii grid' // filename)
 
