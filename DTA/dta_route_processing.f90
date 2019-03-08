@@ -191,7 +191,7 @@ contains
         double precision :: max_dist, min_dist
         double precision :: max_elev, min_elev
         double precision :: reach_dist, reach_slope
-        double precision :: cell_dist, cell_slope, cell_delay
+        double precision :: cell_dist_a, cell_dist_b, cell_dist, cell_slope
         integer :: riv_start_i, riv_end_i
         integer :: hist_start_i, hist_end_i
         double precision :: hist_cursor_a, hist_cursor_b
@@ -342,25 +342,32 @@ contains
 
             tdh_bin_count = (hist_end_i - hist_start_i) + 1
 
+            !print*, 'hist cells: ',tdh_bin_count, ' delay: ',  &
+            !    riv%node_list(i)%reach_delay, hist_start_i, hist_end_i
+
             allocate(delay_hist(tdh_bin_count))
             delay_hist(:) = 0
-
-            hist_cursor_a = 0
 
             ! loop over each cell in the input (river distance)
             do j=riv_start_i,riv_end_i
 
                 ! cell_dist = dist - ds_dist
+                ! length of this cell
                 cell_dist = riv%river_data(j,3) - riv%river_data(j,7)
+
+                ! slope calculation will be wrong
+                ! not used in constant velocity version
                 cell_slope = riv%river_data(j,6)
 
-                ! how long flow takes through this river cell
-                cell_delay = calculate_cell_delay(cell_dist, cell_slope, tdh)
+                cell_dist_a = riv%river_data(j,4)
+                cell_dist_b = cell_dist_a + cell_dist
 
-                hist_cursor_b = hist_cursor_a + cell_delay
+                ! how long flow takes to the outlet of this reach
+                ! add 1 to get indexing 1 based
+                hist_cursor_a = calculate_cell_delay(cell_dist_a, cell_slope, tdh)
+                hist_cursor_b = calculate_cell_delay(cell_dist_b, cell_slope, tdh)
+
                 call hist_add_value(delay_hist, hist_cursor_a, hist_cursor_b, riv%river_data(j,2), tdh_bin_count)
-
-                hist_cursor_a = hist_cursor_b
 
             end do
 
@@ -389,9 +396,17 @@ contains
         ! get the dest cell index (+1 to make this 1 based indexing)
         hist_a = floor(hist_cursor_a) + 1
         hist_b = floor(hist_cursor_b) + 1
+        if(hist_a < 0) then
+            print *, 'hist_a < 0'
+            stop
+        endif
+
+        !print *, 'add ',hist_a,hist_b,tdh_bin_count
+
         if(hist_b > tdh_bin_count) then
             print *, 'delay error - sum of delays greater than bin_count',hist_b,tdh_bin_count
             hist_b = tdh_bin_count
+            return
         endif
 
         if(hist_a == hist_b) then
@@ -488,16 +503,26 @@ contains
         character(1024) river_data_file
         character(1024) flow_conn_file
 
+        integer :: j
+
         tdh%timestep = 3600.0d0
         tdh%v_mode = V_MODE_CONSTANT
         allocate(tdh%v_param(1))
         tdh%v_param(1) = 30.133d0
 
-        river_data_file = '001_dem_river_data.txt'
-        flow_conn_file = '001_dem_rl250_flow_conn.txt'
+        river_data_file = '54020000_riv_data.dat'
+        flow_conn_file = '54020000_flow_conn.txt'
+
 
 
         call route_processing_read_info(river_data_file, flow_conn_file, riv)
+
+        do j=1,size(riv%river_data, 1)
+           if (riv%river_data(j,7)<0.01) then
+              riv%river_data(j,7) = riv%river_data(j,3)-50
+           end if
+        end do
+
 
         tdh%v_param(1) = 20.133d0
         call route_processing_build_hist(riv, tdh)
@@ -522,6 +547,14 @@ contains
 
         !filename, grid, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, write_precision
         call write_ascii_grid('hist_v80.txt', tdh%route_hist_table, &
+            size(tdh%route_hist_table, 2), size(tdh%route_hist_table, 1) , &
+            0.0d0, 0.0d0, 0.0d0, 0.0d0, 6)
+
+        tdh%v_param(1) = 100.133d0
+        call route_processing_build_hist(riv, tdh)
+
+        !filename, grid, ncols, nrows, xllcorner, yllcorner, cellsize, nodata, write_precision
+        call write_ascii_grid('hist_v100.txt', tdh%route_hist_table, &
             size(tdh%route_hist_table, 2), size(tdh%route_hist_table, 1) , &
             0.0d0, 0.0d0, 0.0d0, 0.0d0, 6)
 
@@ -571,7 +604,7 @@ contains
 
         call add_accumulation_test()
 
-        !call build_hist_test()
+        call build_hist_test()
 
     end subroutine route_processing_test
 
