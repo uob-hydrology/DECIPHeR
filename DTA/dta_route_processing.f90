@@ -355,18 +355,21 @@ contains
                 ! length of this cell
                 cell_dist = riv%river_data(j,3) - riv%river_data(j,7)
 
-                ! slope calculation will be wrong
-                ! not used in constant velocity version
+                ! slope based calculation will be wrong - not used in constant velocity version
+                ! need to use slope for the entire downstream
+                ! need to determine if sum of slope delays needs to be calculated
+                ! or if average slope from this point to reach outlet is sufficient
                 cell_slope = riv%river_data(j,6)
 
                 cell_dist_a = riv%river_data(j,4)
                 cell_dist_b = cell_dist_a + cell_dist
 
-                ! how long flow takes to the outlet of this reach
-                ! add 1 to get indexing 1 based
+                ! how long flow takes to the outlet of this reach from the bottom of this cell
                 hist_cursor_a = calculate_cell_delay(cell_dist_a, cell_slope, tdh)
+                ! how long flow takes to the outlet of this reach from the top of this cell
                 hist_cursor_b = calculate_cell_delay(cell_dist_b, cell_slope, tdh)
 
+                ! add the area contribution to the histogram at the cursor locations
                 call hist_add_value(delay_hist, hist_cursor_a, hist_cursor_b, riv%river_data(j,2), tdh_bin_count)
 
             end do
@@ -388,8 +391,8 @@ contains
         double precision :: hist_cursor_b
         double precision :: value
         integer :: tdh_bin_count
-        double precision :: fraction_value
 
+        double precision :: fraction_value
         integer :: hist_a
         integer :: hist_b
 
