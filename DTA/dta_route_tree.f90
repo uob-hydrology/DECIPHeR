@@ -43,14 +43,14 @@ contains
 
         !locals
         integer :: outlet_count
-        integer :: i, jj
+        integer :: i
         integer :: point_row, point_col
         integer :: existing_gauge_id
         type(riv_tree_node), allocatable :: node_list_copy(:)
         type(point_type), allocatable :: reach_intervals(:)
         integer :: down
         integer :: remove_count
-        integer :: node_index, upstream_index
+        integer :: node_index
         integer :: gauge_end_index
         integer :: new_length
         integer :: x, y, fp

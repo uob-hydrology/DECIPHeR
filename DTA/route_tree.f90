@@ -148,16 +148,17 @@ program route_tree
     if(check_file_arg(in_riv_file,'-river').eqv..false.) then
         input_is_valid = .false.
     endif
-    if(check_file_arg(in_point_file,'-points').eqv..false.) then
-        input_is_valid = .false.
-    endif
+    !if(check_file_arg(in_point_file,'-points').eqv..false.) then
+    !    input_is_valid = .false.
+    !endif
 
     if(input_is_valid .eqv. .false.) then
         print *, 'command options'
         print *, '-dem <file.asc>   select dem ascii grid file'
         print *, '-river <file.asc>   select river dist ascii grid file'
         print *, '-points <file.txt>  points on the river mask ascii grid file'
-        print *, '          (e.g. station_river_gauge.txt from catch_cut.e)'
+        print *, '      (e.g. station_river_gauge.txt from catch_cut.e)'
+        print *, '      if points not specified, only sea outlets will be used'
         print *, ''
         print *, 'optional filter points (can be combined)'
         print *, '-filter_area  <min>  filter points by area (default 1, 0 disable)'
@@ -219,9 +220,14 @@ program route_tree
     point_col_score = 7
     point_col_dist = 8
     point_col_out_bound = 9
-    print *, 'read point list: ', trim(in_point_file)
-    write(fp,*) 'read point list: ', trim(in_point_file)
-    call read_numeric_list(in_point_file, 8, 1, read_point_row_list)
+    if(len_trim(in_point_file) > 0) then
+        print *, 'read point list: ', trim(in_point_file)
+        write(fp,*) 'read point list: ', trim(in_point_file)
+        call read_numeric_list(in_point_file, 8, 1, read_point_row_list)
+    else
+        ! no gauge points, generate sea outlet only
+        allocate(read_point_row_list(0,8))
+    endif
 
     filter_stat_area = 0
     filter_stat_score = 0
@@ -340,7 +346,7 @@ program route_tree
 
     if(point_count == 0) then
         print *, 'No remaining points, try removing filters'
-        stop
+    !    stop
     endif
 
     allocate(point_row_list(point_count,size(read_point_row_list,2)))
