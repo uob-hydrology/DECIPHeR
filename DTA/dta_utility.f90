@@ -12,7 +12,7 @@ module dta_utility
     !  8 |  4 |   2
     !integer, parameter, dimension(8) :: direction_out = (/32,64,128,16,1,8,4,2/)
     integer(kind=1), parameter, dimension(8) :: dir_out = int((/32,64,127,16,1,8,4,2/),1)
-    ! Flow into of cell
+    ! Flow in to cell
     !   2 |  4 |  8
     !   1 |    | 16
     ! 127 | 64 | 32
@@ -1111,59 +1111,18 @@ contains
 
         double precision :: dist_cardinal
         double precision :: dist_ordinal
-        double precision dist
 
-        integer x, y
-        integer x_n, y_n
-        integer xl, yl
-        integer neighbour_index
-        integer max_slope_index
-        double precision max_slope
-        double precision slope
+        integer :: x, y
+        integer :: max_slope_index
+        double precision :: max_slope
+        type(point_type) :: flow_point
 
         dist_cardinal = 1 * cellsize
         dist_ordinal = sqrt(2.0) * cellsize
 
         do x = 1,ncols
             do y = 1,nrows
-                max_slope_index = 0
-                if(dem(y,x) > -90) then
-                    max_slope = -999999
-                    neighbour_index = 0
-                    do yl = -1,1
-                        y_n = y + yl
-                        do xl = -1,1
-                            x_n = x + xl
-                            if (xl == 0 .and. yl == 0) then
-                                cycle
-                            endif
-                            neighbour_index = neighbour_index + 1
-                            if(y_n < 1 .or. y_n > nrows  &
-                                .or. x_n <1 .or. x_n > ncols) then
-                                cycle
-                            endif
-                            if (dem(y_n, x_n) < -90) then
-                                cycle
-                            endif
-
-                            if(xl == 0 .or. yl == 0) then
-                                dist = dist_cardinal
-                            else
-                                dist = dist_ordinal
-                            endif
-
-                            slope = (dem(y,x) - dem(y_n, x_n)) / dist
-
-                            if (slope > max_slope) then
-                                max_slope = slope
-                                max_slope_index = neighbour_index
-                            endif
-                        end do
-                    end do
-                else
-                    flow_dir_grid(y,x) = 0
-                    slope_grid(y,x) = -9999
-                endif
+                call cell_flow_dir(ncols, nrows, dem, dist_cardinal, dist_ordinal, x, y, max_slope_index, flow_point, max_slope)
                 if(max_slope_index > 0) then
                     flow_dir_grid(y,x) = dir_out(max_slope_index)
                     slope_grid(y,x) = max_slope
@@ -1176,6 +1135,73 @@ contains
 
 
     end subroutine
+
+    !
+    ! max_slope_index
+    ! |---|---|---|
+    ! | 1 | 2 | 3 |
+    ! | 4 | 0 | 5 |
+    ! | 6 | 7 | 8 |
+    ! |---|---|---|
+    subroutine cell_flow_dir(ncols, nrows, dem, dist_cardinal, dist_ordinal, x, y, max_slope_index, flow_point, max_slope)
+        implicit none
+        integer, intent(in) :: ncols
+        integer, intent(in) :: nrows
+        double precision, intent(in) :: dem(nrows, ncols)
+        double precision :: dist_cardinal
+        double precision :: dist_ordinal
+        integer :: x
+        integer :: y
+        integer, intent(out) :: max_slope_index
+        type(point_type), intent(out) :: flow_point
+        double precision, intent(out) :: max_slope
+
+        double precision :: dist
+
+        integer :: neighbour_index
+        double precision :: slope
+        integer :: x_n, y_n
+
+        max_slope_index = 0
+        flow_point%x = x
+        flow_point%y = y
+
+        if(dem(y,x) > -90) then
+            max_slope = -999999
+            neighbour_index = 0
+            do y_n = y-1,y+1
+                do x_n = x-1,x+1
+                    if (y_n == y .and. x_n == x) then
+                        cycle
+                    endif
+                    neighbour_index = neighbour_index + 1
+                    if(y_n < 1 .or. y_n > nrows  &
+                        .or. x_n <1 .or. x_n > ncols) then
+                        cycle
+                    endif
+                    if (dem(y_n, x_n) < -90) then
+                        cycle
+                    endif
+
+                    if(y_n == y .or. x_n == x) then
+                        dist = dist_cardinal
+                    else
+                        dist = dist_ordinal
+                    endif
+
+                    slope = (dem(y,x) - dem(y_n, x_n)) / dist
+
+                    if (slope > max_slope) then
+                        max_slope = slope
+                        max_slope_index = neighbour_index
+                        flow_point%x = x_n
+                        flow_point%y = y_n
+                    endif
+                end do
+            end do
+        endif
+    end subroutine
+
 
 
 end module dta_utility

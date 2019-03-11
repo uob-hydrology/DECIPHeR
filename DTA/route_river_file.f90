@@ -255,7 +255,8 @@ program route_river_file
     CALL timer_get(end_time)
 
     !print *, 'routing_file_grids_to_list'
-    call routing_file_grids_to_list(nrows, ncols, node_list, river_point_lists, total_river_cells, &
+    call routing_file_grids_to_list(nrows, ncols, cellsize, node_list, &
+        river_point_lists, total_river_cells, &
         riv_dist_grid, area_grid, dem_grid, river_data)
 
     tmp_char = trim(dem_output_prefix)//'_river_data.txt'

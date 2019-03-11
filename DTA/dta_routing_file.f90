@@ -76,7 +76,8 @@ contains
     end subroutine routing_file_find_rivers
 
 
-    subroutine routing_file_grids_to_list(nrows, ncols, node_list, &
+    subroutine routing_file_grids_to_list(nrows, ncols, cellsize, &
+        node_list, &
         river_point_lists, total_river_cells, &
         riv_dist_grid, area_grid, dem_grid, &
         river_data)
@@ -88,6 +89,7 @@ contains
         ! needs to be run after atb - as it requires the river area contributions
         integer :: nrows
         integer :: ncols
+        double precision :: cellsize
         type(riv_tree_node) :: node_list(:)
         type(point_list_type), allocatable, dimension(:) :: river_point_lists
         double precision :: riv_dist_grid(nrows,ncols)
@@ -96,12 +98,12 @@ contains
         double precision, allocatable, dimension(:,:) :: river_data
 
         !locals
-
         integer :: riv_cell_count
         integer :: total_river_cells
-        integer :: i, j, dx, dy
+        integer :: i, j
         type(point_type) :: point, min_point
-        double precision :: min_point_val
+        integer :: max_slope_index
+        double precision :: max_slope, dist_cardinal, dist_ordinal
         integer :: river_data_start
         integer :: river_data_end
         double precision, allocatable, dimension(:) :: river_col_tmp
@@ -116,6 +118,10 @@ contains
         river_data(:,:) = 0
         river_data_start = 1
         !%figure
+
+        dist_cardinal = 1 * cellsize
+        dist_ordinal = sqrt(2.0) * cellsize
+
         do i=1,size(node_list)
             !area_values = area(riv_labelled==node_list(ii).gauge_id);
             !dist_values = riv_dist(riv_labelled==node_list(ii).gauge_id);
@@ -172,22 +178,41 @@ contains
 
                 point = river_point_lists(i)%list(j)
 
-                min_point_val = dem_grid(point%y, point%x)
-                min_point = point
+                ! find downstream point (greatest slope)
+                call cell_flow_dir(ncols, nrows, dem_grid, &
+                    dist_cardinal, dist_ordinal, point%x, point%y, &
+                    max_slope_index, min_point, max_slope)
+                if(point%x == min_point%x .and. point%y == min_point%y) then
+                    print*, 'No slope'
+                endif
+                if(dem_grid(min_point%y, min_point%x) < -90) then
+                    print*, 'flow out of dem'
+                endif
 
-                ! the downstream point is the lowest adjacent cell
-                do dy = point%y-1, point%y+1
-                do dx = point%x-1, point%x+1
-                    if (dem_grid(dy, dx) < min_point_val) then
-                        min_point_val = dem_grid(dy, dx)
-                        min_point%y = dy
-                        min_point%x = dx
+                if(riv_dist_grid(min_point%y, min_point%x) >= riv_dist_grid(point%y, point%x)) then
+
+                    ! sea outlet flow direction may not take no-data into account
+                    ! if centre cell distance is next to the boundary, use 0 as downstream
+                    if(riv_dist_grid(point%y, point%x) < dist_ordinal+0.001) then
+                        river_col_tmp(j) = 0
+                        ! approximate slope (neighbour is going to be higher)
+                        ! to get a reasonable slope, reduce height by the rise to the neighbour
+
+                        print*, dem_grid(point%y, point%x)
+                        print*, dem_grid(min_point%y, min_point%x)
+                        river_col_tmp2(j) = dem_grid(point%y, point%x) - &
+                            (dem_grid(min_point%y, min_point%x) - dem_grid(point%y, point%x))
+                    else
+                        print*, 'invalid downstream distance (not river cell)', riv_dist_grid(min_point%y, min_point%x)
+                        stop
                     endif
-                enddo
-                enddo
+                else
+                    river_col_tmp(j) = riv_dist_grid(min_point%y, min_point%x)
+                    river_col_tmp2(j) = dem_grid(min_point%y, min_point%x)
+                endif
 
-                river_col_tmp(j) = riv_dist_grid(min_point%y, min_point%x)
-                river_col_tmp2(j) = dem_grid(min_point%y, min_point%x)
+
+
             end do
 
             ! downstream dist
