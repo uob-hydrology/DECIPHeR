@@ -198,8 +198,8 @@ contains
                         ! approximate slope (neighbour is going to be higher)
                         ! to get a reasonable slope, reduce height by the rise to the neighbour
 
-                        print*, dem_grid(point%y, point%x)
-                        print*, dem_grid(min_point%y, min_point%x)
+                        !print*, dem_grid(point%y, point%x)
+                        !print*, dem_grid(min_point%y, min_point%x)
                         river_col_tmp2(j) = dem_grid(point%y, point%x) - &
                             (dem_grid(min_point%y, min_point%x) - dem_grid(point%y, point%x))
                     else
