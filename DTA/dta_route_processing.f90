@@ -198,7 +198,6 @@ contains
         integer :: total_timesteps
         double precision, allocatable :: delay_hist(:)
         integer :: tdh_bin_count
-        integer :: sea_count
 
         if(allocated(tdh%node_hist_indexes).eqv..false.) then
             allocate(tdh%node_hist_indexes(size(riv%node_list),2))
@@ -255,23 +254,10 @@ contains
             !reach_length_list(i) = reach_dist ! used to distribute percentage of delay
             !reach_delay_list(i) = reach_delay
 
+            ! slope incorrect for total_downstream_delay (not used in constant velocity)
+            riv%node_list(i)%total_downstream_delay = calculate_cell_delay(min_dist, reach_slope, tdh)
+
         end do
-
-
-        sea_count = 0
-        do i=1,size(riv%node_list)
-            !% node type 1 is the outlet - start counting from outlets
-            if(riv%node_list(i)%downstream_index == 0) then
-                !if(riv%node_list(i)%node_type == NODE_TYPE_SEA) then
-                call riv_node_river_delay(riv%node_list, i, 0.0d0)
-                sea_count = sea_count + 1
-            endif
-        end do
-
-        if(sea_count == 0) then
-            print *, 'Could not find any stream outlets'
-            stop
-        endif
 
         !% this is the total maximum time to the furtherest upstream river point.
         !% equal to river_point_max_delay plus max(reach_delay)
@@ -286,9 +272,9 @@ contains
             !% full distance from furtherest river cell to the outlet
             full_delay = riv%node_list(i)%reach_delay + riv%node_list(i)%total_downstream_delay
 
-            ! add one to make the index one based rather than zero based
+            ! +1 to make the index one based rather than zero based
             tdh%node_hist_indexes(i,1) = floor(riv%node_list(i)%total_downstream_delay) + 1
-            tdh%node_hist_indexes(i,2) = floor(full_delay) + 1
+            tdh%node_hist_indexes(i,2) = ceiling(full_delay) + 1
 
             if(riv%node_list(i)%total_downstream_delay > river_point_max_delay) then
                 ! just recorded to see how many timesteps the flow will reach the bottom

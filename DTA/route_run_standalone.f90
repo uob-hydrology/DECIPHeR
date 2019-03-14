@@ -125,8 +125,6 @@ program route_run_standalone
 
     call route_processing_build_hist(riv, tdh)
 
-    !call route_processing_build_hist(riv, tdh)
-
     CALL timer_get(end_time)
     call timer_print('route_processing_build_hist', start_time, end_time)
 
