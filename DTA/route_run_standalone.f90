@@ -189,7 +189,7 @@ program route_run_standalone
 
     tmp_char = timeseries_flow_input_file(1:len_trim(timeseries_flow_input_file)-4)//'_routed.txt'
 
-    print *, 'write output: ', tmp_char
+    print *, 'write output: ', trim(tmp_char)
     print *, 'Velocity', tdh%v_param(1)
 
     !timeseries_flow_output = timeseries_flow_output * 1000000

@@ -443,13 +443,21 @@ contains
         write (99,'(A)') trim(header_line)
 
         ! build format based on number of columns and the required precision
-        write(tmp_fmt, '(A,A,A,I0,A,A,A)') &
-            '(1(', &
-            trim(valueFormat), &
-            ') ', &
-            size(data,2)-1, &
-            '(1x,', trim(valueFormat), &
-            '))'
+        if(size(data,2)-1 > 0)then
+
+            write(tmp_fmt, '(A,A,A,I0,A,A,A)') &
+                '(1(', &
+                trim(valueFormat), &
+                ') ', &
+                size(data,2)-1, &
+                '(1x,', trim(valueFormat), &
+                '))'
+        else
+            write(tmp_fmt, '(A,A,A)') &
+                '(1(', &
+                trim(valueFormat), &
+                '))'
+        endif
 
         !print *, tmp_fmt
         do i=1,size(data,1)
