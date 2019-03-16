@@ -66,7 +66,6 @@ contains
         ! locals
         ! _flow_point.txt
         character(1024) :: flow_point_file
-        integer :: i
 
         riv%is_enabled = .true.
 
@@ -82,35 +81,7 @@ contains
 
         call read_numeric_list(river_data_file, 8, 1, riv%river_data)
 
-        ! only write output for node_type=gauge
-        ! count the gauge points
-        riv%flow_output_count = 0
-        do i=1,size(riv%node_list)
-            if(riv%node_list(i)%node_type == NODE_TYPE_GAUGE) then
-                riv%flow_output_count = riv%flow_output_count + 1
-            endif
-        end do
-
-        ! allocate record of indexes
-        allocate(riv%flow_output_indexes(riv%flow_output_count))
-        allocate(riv%flow_output_headers(riv%flow_output_count))
-
-
-        riv%flow_output_count = 0
-        ! list of indexes to store flow output data
-        do i=1,size(riv%node_list)
-            if(riv%node_list(i)%node_type == NODE_TYPE_GAUGE) then
-
-                riv%flow_output_count = riv%flow_output_count + 1
-
-                riv%flow_output_headers(riv%flow_output_count) = ''
-                write(riv%flow_output_headers(riv%flow_output_count), '(I0)') riv%node_list(i)%gauge_id
-
-                riv%flow_output_indexes(riv%flow_output_count) = riv%flow_output_count
-            endif
-        end do
-
-
+        call route_processing_init(riv)
 
     end subroutine
 
@@ -129,11 +100,6 @@ contains
         !character(1024) flow_conn_file
         type(route_river_info_type) riv
 
-        ! locals
-        ! _flow_point.txt
-        !character(1024) :: flow_point_file
-        integer :: i
-
         riv%is_enabled = .true.
 
         call riv_tree_read_dyna(riv%node_list, &
@@ -142,6 +108,18 @@ contains
         ! File ID is the same as file ID given in dyna_project.f90 GC 13/06
         !print *, 'read river data:', trim(river_data_file)
         call read_numeric_list_fid(502, 8, 1, riv%river_data)
+
+        call route_processing_init(riv)
+
+    end subroutine route_processing_read_info_dyna
+
+    subroutine route_processing_init(riv)
+        use dta_utility
+        implicit none
+        type(route_river_info_type) riv
+
+        ! locals
+        integer :: i
 
         ! only write output for node_type=gauge
         ! count the gauge points
@@ -171,9 +149,9 @@ contains
             endif
         end do
 
-    end subroutine route_processing_read_info_dyna
+    end subroutine route_processing_init
 
-    subroutine route_processing_build_hist(riv,   tdh    )
+    subroutine route_processing_build_hist(riv, tdh)
         use dta_riv_tree_node
         implicit none
         type(route_river_info_type) riv
@@ -203,7 +181,7 @@ contains
             allocate(tdh%node_hist_indexes(size(riv%node_list),2))
         endif
 
-        min_dist_outlet = minval(riv_data_indexes(:,1))
+        min_dist_outlet = minval(riv_data_indexes(:,7))
 
         do i=1,size(riv%node_list)
 

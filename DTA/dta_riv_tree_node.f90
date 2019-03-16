@@ -442,7 +442,6 @@ contains
 
     end subroutine riv_tree_write
 
-
     subroutine riv_tree_read(node_list, &
         nrows, xllcorner, yllcorner, cellsize, &
         flow_conn_file, flow_point_file)
@@ -457,13 +456,32 @@ contains
         ! locals
         double precision, allocatable, dimension(:,:) :: flow_conn_data
         double precision, allocatable, dimension(:,:) :: flow_point_data
+
+        call read_numeric_list(flow_point_file, 6, 1, flow_point_data)
+        call read_numeric_list(flow_conn_file, 10, 1, flow_conn_data)
+
+        call riv_tree_read_impl(node_list, &
+            nrows, xllcorner, yllcorner, cellsize, &
+            flow_conn_data, flow_point_data)
+
+    end subroutine
+
+    subroutine riv_tree_read_impl(node_list, &
+        nrows, xllcorner, yllcorner, cellsize, &
+        flow_conn_data, flow_point_data)
+        use dta_utility
+        implicit none
+        type(riv_tree_node), allocatable :: node_list(:)
+        integer :: nrows
+        double precision :: xllcorner, yllcorner, cellsize
+        double precision, allocatable, dimension(:,:) :: flow_conn_data
+        double precision, allocatable, dimension(:,:) :: flow_point_data
+
+        ! locals
         integer :: i, j
         integer :: row, col
         integer :: node_id, down_id
         integer :: node_index
-
-        call read_numeric_list(flow_point_file, 6, 1, flow_point_data)
-        call read_numeric_list(flow_conn_file, 10, 1, flow_conn_data)
 
         allocate(node_list(size(flow_point_data,1)))
 
@@ -540,7 +558,7 @@ contains
             call riv_node_full_upstream(i, i, node_list)
         enddo
 
-    end subroutine riv_tree_read
+    end subroutine riv_tree_read_impl
 
     subroutine build_upstream_from_downstream(node_list)
         use dta_utility
@@ -569,11 +587,7 @@ contains
                 !print*, node_list(i)%gauge_id,'<-',node_list(down_index)%gauge_id
             endif
         enddo
-
-
-
     end subroutine build_upstream_from_downstream
-
 
     subroutine riv_tree_read_dyna(node_list, &
         nrows, xllcorner, yllcorner, cellsize)
@@ -587,95 +601,13 @@ contains
         ! locals
         double precision, allocatable, dimension(:,:) :: flow_conn_data
         double precision, allocatable, dimension(:,:) :: flow_point_data
-        integer :: i, j
-        integer :: row, col
-        integer :: node_id, down_id
-        integer :: node_index, down_index
 
         call read_numeric_list_fid(503, 6, 1, flow_point_data)
         call read_numeric_list_fid(501, 10, 1, flow_conn_data)
 
-        allocate(node_list(size(flow_point_data,1)))
-
-        do i=1,size(node_list)
-
-            !flow_point_data(2)!; % easting
-            !flow_point_data(3)!; % northing
-            if(nrows>0) then
-                call NorthingEastingToRowCol(flow_point_data(i,3), flow_point_data(i,2), &
-                    nrows, xllcorner, yllcorner, cellsize, row, col)
-            else
-                !if nrows is not set - just set the node row/col to the easting/northing
-                row = nint(flow_point_data(i,3))
-                col = nint(flow_point_data(i,2))
-            endif
-
-            node_list(i) = new_riv_tree_node()
-            node_list(i)%gauge_id = nint(flow_point_data(i,1))
-            node_list(i)%col = col
-            node_list(i)%row = row
-            node_list(i)%node_type = nint(flow_point_data(i,4))
-            node_list(i)%point_dist = flow_point_data(i,5)
-            node_list(i)%point_h = flow_point_data(i,6)
-        end do
-
-        do i=1,size(flow_conn_data,1)
-
-            node_id = nint(flow_conn_data(i,1))
-            down_id = nint(flow_conn_data(i,5))
-
-
-            !% find matching node from the node_list
-            node_index = 0
-            do j=1,size(node_list)
-                if(node_list(j)%gauge_id == node_id) then
-                    node_index = j
-                    exit
-                endif
-            enddo
-            if(node_index == 0) then
-                print *, 'Point file and flow file do not match', node_id
-                stop
-            endif
-
-            !% find the matching downstream node from node_list
-            do j=1,size(node_list)
-                if(node_list(j)%gauge_id == down_id) then
-                    node_list(node_index)%downstream_index = j
-                    exit
-                end if
-            end do
-
-
-            node_list(node_index)%downstream_dist = flow_conn_data(i,8)
-            node_list(node_index)%downstream_delta_h = flow_conn_data(i,9)
-            node_list(node_index)%downstream_slope = flow_conn_data(i,10)
-
-        end do
-
-
-        !% re-build the upstream links from the downstream info
-        do i=1,size(node_list)
-            down_index = node_list(i)%downstream_index
-            if(down_index > 0) then
-                ! add the upstream link to this node
-                ! on the downstream node
-                call list_add_item(node_list(down_index)%upstream_indexes, i, &
-                    node_list(down_index)%upstream_count)
-            endif
-        enddo
-
-
-        !% build the full upstream linkages for each node
-        !% uses the upstream_indexes to calculate the full upstream tree for each node
-
-        ! every node with have a list of every upstream node
-        !% these lists will determine which rows in the routing table to read from to sum up the flow at each point
-        do i = 1,size(node_list)
-            call riv_node_full_upstream(i, i, node_list)
-        enddo
-
-
+        call riv_tree_read_impl(node_list, &
+            nrows, xllcorner, yllcorner, cellsize, &
+            flow_conn_data, flow_point_data)
 
     end subroutine riv_tree_read_dyna
 
