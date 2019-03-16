@@ -187,7 +187,7 @@ contains
         integer, dimension(size(riv%node_list),2) :: riv_data_indexes
         double precision :: headwater_max_delay
         double precision :: river_point_max_delay
-        double precision :: full_delay
+        double precision :: full_delay, min_dist_outlet
         double precision :: max_dist, min_dist
         double precision :: max_elev, min_elev
         double precision :: reach_dist, reach_slope
@@ -203,6 +203,7 @@ contains
             allocate(tdh%node_hist_indexes(size(riv%node_list),2))
         endif
 
+        min_dist_outlet = minval(riv_data_indexes(:,1))
 
         do i=1,size(riv%node_list)
 
@@ -253,6 +254,10 @@ contains
 
             !reach_length_list(i) = reach_dist ! used to distribute percentage of delay
             !reach_delay_list(i) = reach_delay
+
+            ! remove delay downstream of the min outlet
+            ! don't need to track this in the histogram
+            min_dist = min_dist - min_dist_outlet
 
             ! slope incorrect for total_downstream_delay (not used in constant velocity)
             riv%node_list(i)%total_downstream_delay = calculate_cell_delay(min_dist, reach_slope, tdh)
