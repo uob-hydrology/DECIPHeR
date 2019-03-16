@@ -181,7 +181,7 @@ contains
             allocate(tdh%node_hist_indexes(size(riv%node_list),2))
         endif
 
-        min_dist_outlet = minval(riv_data_indexes(:,7))
+        min_dist_outlet = minval(riv%river_data(:,7))
 
         do i=1,size(riv%node_list)
 
