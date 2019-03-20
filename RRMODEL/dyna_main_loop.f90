@@ -30,7 +30,7 @@ contains
         use dyna_common_types
         use dyna_param_setup
         use dyna_initialise_run
-        use dyna_init_new_route
+        use dyna_init_satzone
         use dyna_topmod
         use dyna_write_output
         use dta_route_processing
@@ -108,23 +108,24 @@ contains
             nac, &
             num_rivers)
 
-        call init_new_route (nac, &
-            nstep, &
-            num_rivers, &
-            chvdt, &
-            dt, &
-            dyna_hru, &
-            mcpar, &
-            q, &
-            qobs_riv_step_start, &
-            route_riv, &
-            route_tdh, &
-            smax, &
-            srinit, &
-            srmax, &
-            sum_ac_riv, &
-            szm, &
-            t0dt)
+            call init_satzone(nac, &
+                nstep, &
+                num_rivers, &
+                chvdt, &
+                dt, &
+                dyna_hru, &
+                mcpar, &
+                q, &
+                qobs_riv_step_start, &
+                rivers, &
+                route_riv, &
+                route_tdh, &
+                smax, &
+                srinit, &
+                srmax, &
+                sum_ac_riv, &
+                szm, &
+                t0dt)
 
         !
         !=========================================================
