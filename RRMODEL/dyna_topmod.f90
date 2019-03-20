@@ -42,6 +42,7 @@ contains
         use dyna_river
         use dyna_results_ts
         use dta_route_processing
+        use dyna_satzone_analyticalsolver
 
         implicit none
 
@@ -61,7 +62,6 @@ contains
         double precision, allocatable, dimension(:,:) :: r_gau_step
 
         double precision :: q(num_rivers, nstep)
-
         doubleprecision :: rivers(nac, num_rivers)
 
         ! Parameters
@@ -97,6 +97,7 @@ contains
             dyna_riv%qof = 0
             dyna_riv%qb = 0
             dyna_hru%qin = 0
+
             !
             !  CALL THE RAIN ROUTINE TO SPLIT UP THE RAIN INPUTS
             !  AND DISTRIBUTE THE EVAPORATION DATA
@@ -137,6 +138,7 @@ contains
                 dyna_hru(ia)%ex = 0.D0
                 dyna_hru(ia)%exs = 0.D0
                 dyna_hru(ia)%exus = 0.D0
+
                 !
                 !=============================================================
                 !  CALL THE APPROPRIATE ROOT ZONE FORMULATION (1 is standard)
@@ -175,17 +177,16 @@ contains
                 !  for downslope flows at this time step
                 !=============================================================
                 !
-                call kinematic (nac, &
-                    acc, &
-                    dtt, &
-                    dyna_hru, &
-                    ia, &
-                    it, &
-                    ntt, &
-                    smax, &
-                    szm, &
-                    t0dt, &
-                    wt)
+
+                    call satzone_analyticalsolver (nac, &
+                        dtt, &
+                        dyna_hru, &
+                        ia, &
+                        it, &
+                        ntt, &
+                        smax, &
+                        szm)
+
                 !
                 !=============================================================
                 !  CALL THE FRACTIONAL AREA RESULTS SUBROUTINE
@@ -231,8 +232,9 @@ contains
                 !==========================================================
 
                 end do
-                                                                        
+
                 return
+
             end subroutine
 
         end module dyna_topmod
