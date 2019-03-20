@@ -20,7 +20,7 @@ program calculate_hrus
     ! Declare variables
 
     type(hru_class_struct) :: hru_class(8)
-    double precision, allocatable, dimension(:,:) :: dem, atb, area, catch_data
+    double precision, allocatable, dimension(:,:) :: dem, atb, area, slope, catch_data
     double precision, allocatable, dimension(:,:) :: hru_share_percent, riv_share_percent, hru_properties
     integer, allocatable, dimension(:,:) :: hru_class_array, hru_class_array_atb, rivs
 
@@ -187,10 +187,13 @@ program calculate_hrus
     temp_filename = trim(outputfolder)//'/'//trim(gauge)//'_dem.asc'
     call read_ascii_grid(temp_filename, dem, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
 
+    temp_filename = trim(outputfolder)//'/'//trim(gauge)//'_slope.asc'
+    call read_ascii_grid(temp_filename, slope, ncols, nrows, xllcorner, yllcorner, cellsize, nodata)
+
     write(fn_log,*) 'Calculating fluxes between HRUs'
 
     call sharing_bw_hrus(hru_class_array, hru_share_percent, riv_share_percent, &
-        hru_properties, atb, rivs, dem, area, nodata)
+        hru_properties, atb, rivs, dem, area, slope, nodata)
 
     temp_filename = trim(outputfolder)//'/'//trim(gauge)//'_dyna_hru.dat'
     !  Write out each HRU and write out the class array
@@ -208,7 +211,7 @@ program calculate_hrus
     temp_filename = trim(outputfolder)//trim(gauge)//'_hru_meta.dat'
     call write_hru_meta(hru_class_meta, hru_properties, hru_class, temp_filename, gauge)
 
-    deallocate(hru_class_meta, hru_class_array, rivs, rivs_meta, area)
+    deallocate(hru_class_meta, hru_class_array, rivs, rivs_meta, area, slope)
     deallocate(dem, atb, hru_properties, hru_class_array_atb, hru_share_percent, riv_share_percent)
 
     end do
