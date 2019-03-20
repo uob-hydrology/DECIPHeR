@@ -94,6 +94,8 @@ contains
 
         if (abs(wbal).gt.0.000001) then
             print *, 'wbal is wrong - check results'
+            print *, sumallini, sumcatin, sumeout, sumfout
+            print *, sumsrz, sumsuz, sumsd, sumqbfini, sumqbf
             print *, wbal
             STOP
         end if
