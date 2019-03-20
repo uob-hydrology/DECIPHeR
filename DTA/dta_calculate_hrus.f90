@@ -223,13 +223,14 @@ contains
         num_hrus = maxval(hru_class_meta(:, 1))
 
         allocate(hru_class_meta_file(num_hrus, num_layers+1))
-        allocate(col_headers(num_layers+3))
+        allocate(col_headers(num_layers+4))
 
         col_headers(1) = 'HRU_ID'
         col_headers(2) = 'NUM_CELLS'
         col_headers(3) = 'MEAN_ATB'
-        col_headers(4) = 'GAUGE_ID'
-        col_headers(size(hru_class_meta, 2)+3) = 'GAUGE_NUM'
+        col_headers(4) = 'MEAN_SLOPE'
+        col_headers(5) = 'GAUGE_ID'
+        col_headers(size(hru_class_meta, 2)+4) = 'GAUGE_NUM'
 
         hru_class_meta_file(:, 1:2) = hru_class_meta(:, 1:2)
 
@@ -241,19 +242,19 @@ contains
 
         if (len_trim(hru_class(1)%fn_end).gt.0) then
             num_layers = num_layers+1
-            col_headers(num_layers+2) = 'AREA_ID'
+            col_headers(num_layers+3) = 'AREA_ID'
             hru_class_meta_file(:, num_layers) = hru_class_meta(:, num_layers)
         end if
 
         if (len_trim(hru_class(2)%fn_end).gt.0) then
             num_layers = num_layers+1
-            col_headers(num_layers+2) = 'SLOPE_ID'
+            col_headers(num_layers+3) = 'SLOPE_ID'
             hru_class_meta_file(:, num_layers) = hru_class_meta(:, num_layers)
         end if
 
         if (len_trim(hru_class(3)%fn_end).gt.0) then
             num_layers = num_layers+1
-            col_headers(num_layers+2) = 'ELEV_ID'
+            col_headers(num_layers+3) = 'ELEV_ID'
             hru_class_meta_file(:, num_layers) = hru_class_meta(:, num_layers)
         end if
 
@@ -262,10 +263,10 @@ contains
         if (len_trim(hru_class(4)%fn_end).gt.0) then
 
             num_layers = num_layers+1
-            col_headers(num_layers+2) = 'RAIN_ID'
+            col_headers(num_layers+3) = 'RAIN_ID'
             hru_class_meta_file(:, num_layers) = hru_class_meta(:, num_layers)
             ix = ix+1
-            col_headers(size(hru_class_meta, 2)+ix+2) = 'RAIN_NUM'
+            col_headers(size(hru_class_meta, 2)+ix+3) = 'RAIN_NUM'
             do k = 1, num_hrus
                 hru_class_meta_file(k, size(hru_class_meta, 2) + ix) = hru_class(4)%meta(hru_class_meta(k,num_layers), 2)
             end do
@@ -275,10 +276,10 @@ contains
         if (len_trim(hru_class(5)%fn_end).gt.0) then
 
             num_layers = num_layers+1
-            col_headers(num_layers+2) = 'PET_ID'
+            col_headers(num_layers+3) = 'PET_ID'
             hru_class_meta_file(:, num_layers) = hru_class_meta(:, num_layers)
             ix = ix+1
-            col_headers(size(hru_class_meta, 2)+ix+2) = 'PET_NUM'
+            col_headers(size(hru_class_meta, 2)+ix+3) = 'PET_NUM'
             do k = 1, num_hrus
                 hru_class_meta_file(k, size(hru_class_meta, 2) + ix) = hru_class(5)%meta(hru_class_meta(k,num_layers), 2)
             end do
@@ -288,10 +289,10 @@ contains
         if (len_trim(hru_class(6)%fn_end).gt.0) then
 
             num_layers = num_layers+1
-            col_headers(num_layers+2) = 'MODELSTRUCT_ID'
+            col_headers(num_layers+3) = 'MODELSTRUCT_ID'
             hru_class_meta_file(:, num_layers) = hru_class_meta(:, num_layers)
             ix = ix+1
-            col_headers(size(hru_class_meta, 2)+ix+2) = 'MODELSTRUCT_NUM'
+            col_headers(size(hru_class_meta, 2)+ix+3) = 'MODELSTRUCT_NUM'
             do k = 1, num_hrus
                 hru_class_meta_file(k, size(hru_class_meta, 2) + ix) = hru_class(6)%meta(hru_class_meta(k,num_layers), 2)
             end do
@@ -301,10 +302,10 @@ contains
         if (len_trim(hru_class(7)%fn_end).gt.0) then
 
             num_layers = num_layers+1
-            col_headers(num_layers+2) = 'PARAM_ID'
+            col_headers(num_layers+3) = 'PARAM_ID'
             hru_class_meta_file(:, num_layers) = hru_class_meta(:, num_layers)
             ix = ix+1
-            col_headers(size(hru_class_meta, 2)+ix+2) = 'PARAM_NUM'
+            col_headers(size(hru_class_meta, 2)+ix+3) = 'PARAM_NUM'
             do k = 1, num_hrus
                 hru_class_meta_file(k, size(hru_class_meta, 2) + ix) = hru_class(7)%meta(hru_class_meta(k,num_layers), 2)
             end do
@@ -340,8 +341,9 @@ contains
         write(line_format,'(A,I0,A)') '(I0, A, I0, A F7.3, ', size(hru_class_meta_file, 2)-1, '(I9))'
 
         do i = 1, size(hru_class_meta_file, 1)
-            write(997, '(I0, A, I0, A, F0.5)', advance = "no") hru_class_meta_file(i, 1), char(9), &
-                int(hru_properties(atb_ix(i), 1)), char(9), hru_properties(atb_ix(i), 2)
+            write(997, '(I0, A, I0, A, F0.5, A, F0.8)', advance = "no") hru_class_meta_file(i, 1), char(9), &
+                int(hru_properties(atb_ix(i), 1)), char(9), hru_properties(atb_ix(i), 2), char(9), &
+                hru_properties(atb_ix(i), 4)
             do k = 1, size(hru_class_meta_file, 2)-1
                 if (k.lt.size(hru_class_meta_file, 2)-1) then
                     write(997, '(A, I0)', advance = "no") char(9), hru_class_meta_file(i, k+1)
@@ -356,7 +358,7 @@ contains
     end subroutine write_hru_meta
 
     subroutine sharing_bw_hrus(hru_class_array, hru_share_percent, riv_share_percent, &
-        hru_properties, atb, rivs, dem, area, nodata)
+        hru_properties, atb, rivs, dem, area, slope, nodata)
 
         use dta_preprocess
 
@@ -365,7 +367,7 @@ contains
         integer, intent(in) :: hru_class_array(:, :)
         integer, intent(in) :: rivs(:, :)
         double precision, intent(in) :: nodata
-        double precision, intent(in) :: dem(:, :), atb(:, :), area(:,:)
+        double precision, intent(in) :: dem(:, :), atb(:, :), area(:,:), slope(:, :)
         double precision, allocatable, intent(out) :: hru_share_percent(:,:)
         double precision, allocatable, intent(out) :: hru_properties(:, :)
         double precision, allocatable, intent(out) :: riv_share_percent(:,:)
@@ -385,7 +387,7 @@ contains
         riv_class_share = 0
         allocate (riv_share_percent(maxval(hru_class_array), maxval(rivs)))
         riv_share_percent = 0
-        allocate (hru_properties(maxval(hru_class_array), 3))
+        allocate (hru_properties(maxval(hru_class_array), 4))
         hru_properties = 0
 
         !  Loop through each cell of the whole array
@@ -469,7 +471,7 @@ contains
             end do
         end do
 
-        !  Calculate the mean atb for each hru class - this is used to sort the classes
+        !  Calculate the mean atb and mean slope for each hru class - this is used to sort the classes and gets used in the analytical solution
 
         do i = 1, maxval(hru_class_array)
 
@@ -481,6 +483,8 @@ contains
             hru_properties(i, 2) = sum(atb, hru_class_array.eq.i) / count(hru_class_array.eq.i)
             ! Number of classes this HRU is sharing to
             hru_properties(i, 3) = count((hru_share_percent(i,:)).gt.0)
+            ! Calculate mean slope
+            hru_properties(i, 4) = sum(slope, hru_class_array.eq.i) / count(hru_class_array.eq.i)
 
         end do
 
