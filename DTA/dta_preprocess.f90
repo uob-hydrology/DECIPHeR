@@ -231,7 +231,7 @@ contains
                 end if
             end do
         end do
-        allocate(riv_point_data_catch(riv_point_count, 6))
+        allocate(riv_point_data_catch(riv_point_count, 8))
 
         ix1 = 0
 
@@ -239,7 +239,7 @@ contains
             do i = 1, size(riv_point_data, 1)
                 if (riv_point_data(i, 1).eq.gauges(j)) then
                     ix1 = ix1+1
-                    riv_point_data_catch(ix1, 1:6) =riv_point_data(i,1:6)
+                    riv_point_data_catch(ix1, 1:8) =riv_point_data(i,1:8)
                 end if
             end do
         end do
@@ -274,7 +274,7 @@ contains
         integer :: i
 
         ! Locals
-        character(64) :: col_headers(6)
+        character(64) :: col_headers(8)
 
         open(100, file = flowconn_fn, status = 'unknown')
 
@@ -314,6 +314,8 @@ contains
         col_headers(4) = 'section_dist'
         col_headers(5) = 'elevation'
         col_headers(6) = 'slope'
+        col_headers(7) = 'ds_dist'
+        col_headers(8) = 'ds_elevation'
 
         call write_numeric_list(rivdata_fn, col_headers, riv_point_data_catch, 3)
 
