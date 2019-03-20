@@ -37,7 +37,6 @@ contains
         use dyna_dynamic_dist
         use dyna_root_zone1
         use dyna_unsat_zone1
-        use dyna_kinematic
         use dyna_results_ac
         use dyna_river
         use dyna_results_ts
