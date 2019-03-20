@@ -39,6 +39,8 @@ module dyna_common_types
         integer :: ntransriv
 
         double precision :: st
+        double precision :: mslp
+        double precision :: q0
 
         doubleprecision :: pex
         doubleprecision :: psrz
@@ -60,7 +62,6 @@ module dyna_common_types
         doubleprecision :: qbf
         doubleprecision :: qbft1
         doubleprecision :: pc
-        doubleprecision :: sd_change
 
        ! Summary stats for each HRU
         doubleprecision :: sum_pptin
