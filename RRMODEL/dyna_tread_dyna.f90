@@ -67,7 +67,8 @@ contains
         do i = 1, nac
             dyna_hru(i)%ac = hru_meta(i,2)/sum(hru_meta(:,2))
             dyna_hru(i)%st = hru_meta(i,3)
-            dyna_hru(i)%ipriv = int(hru_meta(i,4))
+            dyna_hru(i)%mslp = hru_meta(i,4)
+            dyna_hru(i)%ipriv = int(hru_meta(i,5))
         end do
 
         ! Set these variables to 1 unless specified
