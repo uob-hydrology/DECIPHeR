@@ -189,7 +189,7 @@ program preprocess
 
         ! Read in the river data file (need distance)
         temp_fn = trim(root_fn)//'_river_data.txt'
-        call read_numeric_list(temp_fn, 6, 1, riv_point_data)
+        call read_numeric_list(temp_fn, 8, 1, riv_point_data)
 
         ! Read in the flow point data file
         temp_fn = trim(root_fn)//'_flow_point.txt'
