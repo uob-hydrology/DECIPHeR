@@ -55,8 +55,8 @@ echo ''
 echo 'preprocess.e crops relevant data for specified catchment(s) only'
 echo ''
 
-echo ${CODE_DIR}./preprocess.e -gaugelist ${GAUGELIST} -hru_class_file ${HRU_CLASS_FILE} -root_fn ${ROOT_FN} -output_folder ${OUTPUT_DIR} -catchmask_folder ${CATCHMASK_DIR}
-${CODE_DIR}./preprocess.e -gaugelist ${GAUGELIST} -hru_class_file ${HRU_CLASS_FILE} -root_fn ${ROOT_FN} -output_folder ${OUTPUT_DIR} -catchmask_folder ${CATCHMASK_DIR}
+echo ${CODE_DIR}/./preprocess.e -gaugelist ${GAUGELIST} -hru_class_file ${HRU_CLASS_FILE} -root_fn ${ROOT_FN} -output_folder ${OUTPUT_DIR} -catchmask_folder ${CATCHMASK_DIR}
+${CODE_DIR}/./preprocess.e -gaugelist ${GAUGELIST} -hru_class_file ${HRU_CLASS_FILE} -root_fn ${ROOT_FN} -output_folder ${OUTPUT_DIR} -catchmask_folder ${CATCHMASK_DIR}
 
 
 echo ''
@@ -69,5 +69,5 @@ echo ''
 # calculate HRUs
 # -----------------------------------------------------------------------------
 
-echo ${CODE_DIR}/calculate_hrus.e -gaugelist ${GAUGELIST} -hru_class_file ${HRU_CLASS_FILE} -output_folder ${OUTPUT_DIR}/
-${CODE_DIR}./calculate_hrus.e -gaugelist ${GAUGELIST} -hru_class_file ${HRU_CLASS_FILE} -output_folder ${OUTPUT_DIR}/
+echo ${CODE_DIR}/./calculate_hrus.e -gaugelist ${GAUGELIST} -hru_class_file ${HRU_CLASS_FILE} -output_folder ${OUTPUT_DIR}/
+${CODE_DIR}/./calculate_hrus.e -gaugelist ${GAUGELIST} -hru_class_file ${HRU_CLASS_FILE} -output_folder ${OUTPUT_DIR}/
