@@ -163,7 +163,7 @@ contains
         write(999,*) 'Read in PET data succesfully'
 
         ! Check that precip and pet time series are the same length
-	 if (nstep_ppt.eq.nstep_pet) then
+        if (nstep_ppt.eq.nstep_pet) then
            nstep = nstep_ppt
         else
            PRINT *, 'THe number of timesteps in your precipitation and PET time series MUST match'

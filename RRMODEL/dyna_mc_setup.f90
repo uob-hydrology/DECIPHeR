@@ -143,7 +143,7 @@ contains
             end do
 
             if (pm_found == 0) then !i.e. user specified a parameter name that does not exist - print a warning and stop program
-                print *,
+                print *, ''
                 print *, 'ERROR: ',trim(param_names(i)) ,' has been specified in param file but does not exist'
                 print *, 'The following parameters can be set in the parameter file:'
                 print *, all_pm_names
