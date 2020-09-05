@@ -1,4 +1,4 @@
-FC             = /usr/bin/gfortran
+FC             = gfortran
 FFLAGS         = -O0 -std=f2003 -Wall -fbounds-check -g 
 LDFLAGS        = 
 PROG_RM        = rm -f
