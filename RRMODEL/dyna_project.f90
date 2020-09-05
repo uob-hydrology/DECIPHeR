@@ -199,7 +199,7 @@ contains
         endif
 
         !  THEN READ IN ALL THE INPUT METADATA
-        print *,
+        print *, ''
         PRINT *, 'The following input files are available:'
 
         allocate(flow_file_comment (num_flow_input), stat = AllocateStatus)

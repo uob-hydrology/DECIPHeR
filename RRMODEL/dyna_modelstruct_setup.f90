@@ -95,13 +95,13 @@ contains
         end do
 
         if (ms_rz_found.ne.1) then !i.e. user specified a parameter name that does not exist - print a warning and stop program
-            print *,
+            print *, ''
             print *, 'WARNING: rootzone has not been specified in model structure file'
             print *, 'All HRUs will have the default rootzone model component'
         end if
 
         if (ms_uz_found.ne.1) then !i.e. user specified a parameter name that does not exist - print a warning and stop program
-            print *,
+            print *, ''
             print *, 'WARNING: unsatzone has not been specified in model structure file'
             print *, 'All HRUs will have the default unsatzone model component'
         end if
